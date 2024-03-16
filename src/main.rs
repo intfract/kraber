@@ -3,6 +3,7 @@ use std::{any::Any, collections::HashMap, fmt};
 mod functions;
 use functions::add;
 
+#[derive(Clone)]
 struct Token {
     value: String,
     category: String,
@@ -23,6 +24,7 @@ struct TokenFactory {
     digits: String,
     commutators: String,
     comfns: HashMap<char, fn(Vec<f64>) -> f64>,
+    brackets: String,
     keywords: Vec<String>,
 }
 
@@ -68,16 +70,61 @@ impl TokenFactory {
                 tokens.push(Token { value: self.character.to_string(), category: "COM".to_string() })
             } else if self.digits.contains(self.character) || self.character == '+' || self.character == '-' {
                 let mut number = self.character.to_string();
+                self.step();
                 number.push_str(&self.get_number());
                 if number.contains('.') {
-                    tokens.push(Token { value: self.character.to_string(), category: "FLT".to_string() })
+                    tokens.push(Token { value: number, category: "FLT".to_string() })
                 } else {
-                    tokens.push(Token { value: self.character.to_string(), category: "INT".to_string() })
+                    tokens.push(Token { value: number, category: "INT".to_string() })
                 }
+            } else if self.brackets.contains(self.character) {
+                tokens.push(Token { value: self.character.to_string(), category: "BRK".to_string() })
             }
             self.step();
         }
         tokens
+    }
+}
+
+struct Variable<'a> {
+    value: &'a dyn Any,
+    category: String,
+}
+
+struct Parser {
+    index: usize,
+    tokens: Vec<Token>,
+    token: Token,
+    end: bool,
+}
+
+impl Parser {
+    fn step(&mut self) {
+        self.index += 1;
+        if self.index < self.tokens.len() {
+            self.token = self.tokens[self.index].clone();
+        } else {
+            self.end = true;
+        }
+    }
+
+    fn parse(&mut self) {
+        while !self.end {
+            match self.token.category.as_str() {
+                "KEY" => {
+                    if self.token.value == "declare" {
+                        if self.token.category != "REF" {
+                            panic!("expected REF");
+                        }
+                    }
+                    /*
+                     * parse type annotations
+                     */
+                },
+                _ => {}
+            }
+            self.step();
+        }
     }
 }
 
@@ -94,15 +141,16 @@ fn create_token_factory(code: String) -> TokenFactory {
         digits: "0123456789".to_string(),
         commutators: "+*=".to_string(),
         comfns,
-        keywords: vec!["declare".to_string(), "as".to_string(), "set".to_string(), "to".to_string()],
+        brackets: "()[]{}".to_string(),
+        keywords: vec!["declare".to_string(), "as".to_string(), "set".to_string().to_string(), "to".to_string()],
     }
 }
 
 fn main() {
-    let code = "declare x\nset x to 1".to_string();
+    let code = "declare x\nset x to f(1)".to_string();
     let mut token_factory = create_token_factory(code);
     let tokens = token_factory.get_tokens();
     for token in &tokens {
-        println!("token: {token}");
+        println!("{token}");
     }
 }
