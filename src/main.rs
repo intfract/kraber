@@ -63,6 +63,10 @@ impl TokenFactory {
                 let word = self.get_word();
                 if self.keywords.contains(&word) {
                     tokens.push(Token { value: word, category: "KEY".to_string() });
+                } else if word == "false" || word == "true" {
+                    tokens.push(Token { value: word, category: "BLN".to_string() });
+                } else if ["int".to_string()].contains(&word) {
+                    tokens.push(Token { value: word, category: "TYP".to_string() });
                 } else {
                     tokens.push(Token { value: word, category: "REF".to_string() });
                 }
@@ -74,8 +78,10 @@ impl TokenFactory {
                 number.push_str(&self.get_number());
                 if number.contains('.') {
                     tokens.push(Token { value: number, category: "FLT".to_string() })
-                } else {
+                } else if number.contains('+') || number.contains('-') {
                     tokens.push(Token { value: number, category: "INT".to_string() })
+                } else {
+                    tokens.push(Token { value: number, category: "WHL".to_string() })
                 }
             } else if self.brackets.contains(self.character) {
                 tokens.push(Token { value: self.character.to_string(), category: "BRK".to_string() })
@@ -89,6 +95,101 @@ impl TokenFactory {
 struct Variable<'a> {
     value: &'a dyn Any,
     category: String,
+}
+
+#[derive(Debug, PartialEq, Clone)]
+struct Integer {
+    value: i32,
+}
+
+#[derive(Debug, PartialEq, Clone)]
+struct Whole {
+    value: u32,
+}
+
+#[derive(Debug, PartialEq, Clone)]
+struct Float {
+    value: f64,
+}
+
+struct Declare {}
+
+#[derive(Debug, PartialEq, Clone)]
+enum Types {
+    Whole(Whole),
+    Integer(Integer),
+    Float(Float),
+    Declare,
+    String(String),
+}
+
+#[derive(Debug)]
+struct Tree {
+    root: Node,
+}
+
+#[derive(Debug, Clone)]
+struct Node {
+    id: usize,
+    data: Types,
+    nodes: Vec<Node>,
+}
+
+impl Tree {
+    fn new() -> Self {
+        Tree {
+            root: Node {
+                id: 0,
+                data: Types::Whole(Whole { value: 0 }),
+                nodes: Vec::new(),
+            },
+        }
+    }
+
+    fn get_scope(&mut self, scope: Vec<usize>) -> &mut Node {
+        self.root.get_scope(scope)
+    }
+}
+
+impl Node {
+    fn insert(&mut self, item: &Types) -> &mut Node {
+        let mut node = self;
+
+        let next_node_idx = Node::get_child_idx(&node.nodes, node.nodes.len());
+        
+        node = match next_node_idx {
+            Some(x) => {
+                node.nodes[x].insert(item)
+            },
+            None => {
+                let new_node = Node {
+                    id: node.nodes.len(),
+                    data: item.to_owned(),
+                    nodes: Vec::new(),
+                };
+                node.nodes.push(new_node);
+                node.nodes.last_mut().unwrap()
+            }
+        };
+        node
+    }
+
+    fn get_child_idx<'a>(v: &Vec<Node>, id: usize) -> Option<usize> {
+        v.iter()
+            .enumerate()
+            .find(|(_, n)| n.id == id)
+            .map(|(i, _)| i)
+    }
+
+    fn get_scope(&mut self, mut scope: Vec<usize>) -> &mut Node {
+        let mut node = self;
+        if scope.len() > 0 {
+            node = &mut node.nodes[scope[0]];
+            scope.pop();
+            return node.get_scope(scope);
+        }
+        node
+    }
 }
 
 struct Parser {
@@ -108,23 +209,33 @@ impl Parser {
         }
     }
 
-    fn parse(&mut self) {
+    fn parse(&mut self) -> Tree {
+        let mut ast = Tree::new();
+        let mut scope: Vec<usize> = [].to_vec();
         while !self.end {
             match self.token.category.as_str() {
                 "KEY" => {
                     if self.token.value == "declare" {
+                        self.step();
                         if self.token.category != "REF" {
                             panic!("expected REF");
                         }
+                        let node = ast.get_scope(scope.clone()).insert(&Types::Declare);
+                        self.step();
+                        if self.token.value == "as" {
+                            self.step();
+                            if self.token.category != "TYP" {
+                                panic!("expected TYP");
+                            }
+                            node.insert(&Types::String(self.token.value.clone()));
+                        }
                     }
-                    /*
-                     * parse type annotations
-                     */
                 },
                 _ => {}
             }
             self.step();
         }
+        ast
     }
 }
 
@@ -146,11 +257,24 @@ fn create_token_factory(code: String) -> TokenFactory {
     }
 }
 
+fn create_parser(tokens: Vec<Token>) -> Parser {
+    let token = tokens[0].clone();
+    Parser {
+        index: 0,
+        tokens,
+        token,
+        end: false,
+    }
+}
+
 fn main() {
-    let code = "declare x\nset x to f(1)".to_string();
+    let code = "declare x as int\nset x to f(1)".to_string();
     let mut token_factory = create_token_factory(code);
     let tokens = token_factory.get_tokens();
     for token in &tokens {
         println!("{token}");
     }
+    let mut parser = create_parser(tokens);
+    let ast = parser.parse();
+    println!("{ast:?}");
 }
