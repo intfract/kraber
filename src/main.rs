@@ -1,4 +1,7 @@
-use std::{any::Any, collections::HashMap, fmt};
+extern crate strum;
+#[macro_use] extern crate strum_macros;
+
+use std::{any::Any, collections::HashMap, fmt, str::FromStr};
 
 mod functions;
 use functions::add;
@@ -97,33 +100,25 @@ struct Variable<'a> {
     category: String,
 }
 
-#[derive(Debug, PartialEq, Clone)]
-struct Integer {
-    value: i32,
-}
-
-#[derive(Debug, PartialEq, Clone)]
-struct Whole {
-    value: u32,
-}
-
-#[derive(Debug, PartialEq, Clone)]
-struct Float {
-    value: f64,
-}
-
 struct Declare {}
+struct Assign {}
 
-#[derive(Debug, PartialEq, Clone)]
-enum Types {
-    Whole(Whole),
-    Integer(Integer),
-    Float(Float),
-    Declare,
+struct Main {}
+
+#[derive(Debug, PartialEq, Clone, EnumString)]
+enum Meta {
+    REF(String),
+    TYP(String),
+    WHL(u32),
+    INT(i32),
+    FLT(f64),
+    Main,
     String(String),
+    Declare,
+    Assign,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct Tree {
     root: Node,
 }
@@ -131,7 +126,7 @@ struct Tree {
 #[derive(Debug, Clone)]
 struct Node {
     id: usize,
-    data: Types,
+    data: Meta,
     nodes: Vec<Node>,
 }
 
@@ -140,7 +135,7 @@ impl Tree {
         Tree {
             root: Node {
                 id: 0,
-                data: Types::Whole(Whole { value: 0 }),
+                data: Meta::Main,
                 nodes: Vec::new(),
             },
         }
@@ -152,7 +147,7 @@ impl Tree {
 }
 
 impl Node {
-    fn insert(&mut self, item: &Types) -> &mut Node {
+    fn insert(&mut self, item: &Meta) -> &mut Node {
         let mut node = self;
 
         let next_node_idx = Node::get_child_idx(&node.nodes, node.nodes.len());
@@ -197,6 +192,7 @@ struct Parser {
     tokens: Vec<Token>,
     token: Token,
     end: bool,
+    type_codes: Vec<String>,
 }
 
 impl Parser {
@@ -220,14 +216,29 @@ impl Parser {
                         if self.token.category != "REF" {
                             panic!("expected REF");
                         }
-                        let node = ast.get_scope(scope.clone()).insert(&Types::Declare);
+                        let node = ast.get_scope(scope.clone()).insert(&Meta::Declare);
+                        node.insert(&Meta::REF("".to_string()));
                         self.step();
                         if self.token.value == "as" {
                             self.step();
                             if self.token.category != "TYP" {
                                 panic!("expected TYP");
                             }
-                            node.insert(&Types::String(self.token.value.clone()));
+                            node.insert(&Meta::TYP(self.token.value.clone()));
+                        }
+                    }
+                    if self.token.value == "set" {
+                        self.step();
+                        if self.token.category != "REF" {
+                            panic!("expected REF");
+                        }
+                        let node = ast.get_scope(scope.clone()).insert(&Meta::Assign);
+                        self.step();
+                        if self.token.value == "to" {
+                            self.step();
+                            if self.type_codes.contains(&self.token.category) {
+                                node.insert(&Meta::from_str(&self.token.category).unwrap());
+                            }
                         }
                     }
                 },
@@ -264,11 +275,12 @@ fn create_parser(tokens: Vec<Token>) -> Parser {
         tokens,
         token,
         end: false,
+        type_codes: ["WHL".to_string(), "INT".to_string(), "FLT".to_string(), "STR".to_string()].to_vec(),
     }
 }
 
 fn main() {
-    let code = "declare x as int\nset x to f(1)".to_string();
+    let code = "declare x as int\nset x to 1".to_string();
     let mut token_factory = create_token_factory(code);
     let tokens = token_factory.get_tokens();
     for token in &tokens {
