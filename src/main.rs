@@ -6,10 +6,37 @@ use std::{any::Any, collections::HashMap, fmt, str::FromStr};
 mod functions;
 use functions::add;
 
+struct Main {}
+
+#[derive(Debug, PartialEq, Clone, EnumString, Display)]
+enum Meta {
+    REF,
+    TYP,
+    WHL,
+    INT,
+    FLT,
+    KEY,
+    BLN,
+    COM,
+    BRK,
+}
+
+#[derive(Debug, PartialEq, Clone, EnumString, Display)]
+enum Data {
+    Main,
+    Declare,
+    Assign,
+    Identifier(String),
+    Type(String),
+    Whole(usize),
+    Integer(isize),
+    Float(f64),
+}
+
 #[derive(Clone)]
 struct Token {
     value: String,
-    category: String,
+    category: Meta,
 }
 
 impl fmt::Display for Token {
@@ -18,7 +45,7 @@ impl fmt::Display for Token {
     }
 }
 
-struct TokenFactory {
+struct Lexer {
     code: String,
     index: usize,
     character: char,
@@ -31,7 +58,7 @@ struct TokenFactory {
     keywords: Vec<String>,
 }
 
-impl TokenFactory {
+impl Lexer {
     fn step(&mut self) {
         self.index += 1;
         if self.index < self.code.len() {
@@ -65,29 +92,29 @@ impl TokenFactory {
             if self.letters.contains(self.character) {
                 let word = self.get_word();
                 if self.keywords.contains(&word) {
-                    tokens.push(Token { value: word, category: "KEY".to_string() });
+                    tokens.push(Token { value: word, category: Meta::KEY });
                 } else if word == "false" || word == "true" {
-                    tokens.push(Token { value: word, category: "BLN".to_string() });
-                } else if ["int".to_string()].contains(&word) {
-                    tokens.push(Token { value: word, category: "TYP".to_string() });
+                    tokens.push(Token { value: word, category: Meta::BLN });
+                } else if ["whole".to_string(), "integer".to_string(), "float".to_string()].contains(&word) {
+                    tokens.push(Token { value: word, category: Meta::TYP });
                 } else {
-                    tokens.push(Token { value: word, category: "REF".to_string() });
+                    tokens.push(Token { value: word, category: Meta::REF });
                 }
             } else if self.commutators.contains(self.character) {
-                tokens.push(Token { value: self.character.to_string(), category: "COM".to_string() })
+                tokens.push(Token { value: self.character.to_string(), category: Meta::COM })
             } else if self.digits.contains(self.character) || self.character == '+' || self.character == '-' {
                 let mut number = self.character.to_string();
                 self.step();
                 number.push_str(&self.get_number());
                 if number.contains('.') {
-                    tokens.push(Token { value: number, category: "FLT".to_string() })
+                    tokens.push(Token { value: number, category: Meta::FLT })
                 } else if number.contains('+') || number.contains('-') {
-                    tokens.push(Token { value: number, category: "INT".to_string() })
+                    tokens.push(Token { value: number, category: Meta::INT })
                 } else {
-                    tokens.push(Token { value: number, category: "WHL".to_string() })
+                    tokens.push(Token { value: number, category: Meta::WHL })
                 }
             } else if self.brackets.contains(self.character) {
-                tokens.push(Token { value: self.character.to_string(), category: "BRK".to_string() })
+                tokens.push(Token { value: self.character.to_string(), category: Meta::BRK })
             }
             self.step();
         }
@@ -100,23 +127,7 @@ struct Variable<'a> {
     category: String,
 }
 
-struct Declare {}
-struct Assign {}
 
-struct Main {}
-
-#[derive(Debug, PartialEq, Clone, EnumString)]
-enum Meta {
-    REF(String),
-    TYP(String),
-    WHL(u32),
-    INT(i32),
-    FLT(f64),
-    Main,
-    String(String),
-    Declare,
-    Assign,
-}
 
 #[derive(Debug, Clone)]
 struct Tree {
@@ -126,7 +137,7 @@ struct Tree {
 #[derive(Debug, Clone)]
 struct Node {
     id: usize,
-    data: Meta,
+    data: Data,
     nodes: Vec<Node>,
 }
 
@@ -135,7 +146,7 @@ impl Tree {
         Tree {
             root: Node {
                 id: 0,
-                data: Meta::Main,
+                data: Data::Main,
                 nodes: Vec::new(),
             },
         }
@@ -147,7 +158,7 @@ impl Tree {
 }
 
 impl Node {
-    fn insert(&mut self, item: &Meta) -> &mut Node {
+    fn insert(&mut self, item: &Data) -> &mut Node {
         let mut node = self;
 
         let next_node_idx = Node::get_child_idx(&node.nodes, node.nodes.len());
@@ -192,7 +203,6 @@ struct Parser {
     tokens: Vec<Token>,
     token: Token,
     end: bool,
-    type_codes: Vec<String>,
 }
 
 impl Parser {
@@ -209,35 +219,49 @@ impl Parser {
         let mut ast = Tree::new();
         let mut scope: Vec<usize> = [].to_vec();
         while !self.end {
-            match self.token.category.as_str() {
-                "KEY" => {
+            match self.token.category {
+                Meta::KEY => {
                     if self.token.value == "declare" {
                         self.step();
-                        if self.token.category != "REF" {
+                        if self.token.category != Meta::REF {
                             panic!("expected REF");
                         }
-                        let node = ast.get_scope(scope.clone()).insert(&Meta::Declare);
-                        node.insert(&Meta::REF("".to_string()));
+                        let node = ast.get_scope(scope.clone()).insert(&Data::Declare);
+                        node.insert(&Data::Identifier(self.token.value.clone()));
                         self.step();
                         if self.token.value == "as" {
                             self.step();
-                            if self.token.category != "TYP" {
+                            if self.token.category != Meta::TYP {
                                 panic!("expected TYP");
                             }
-                            node.insert(&Meta::TYP(self.token.value.clone()));
+                            node.insert(&Data::Type(self.token.value.clone()));
                         }
                     }
                     if self.token.value == "set" {
                         self.step();
-                        if self.token.category != "REF" {
+                        if self.token.category != Meta::REF {
                             panic!("expected REF");
                         }
-                        let node = ast.get_scope(scope.clone()).insert(&Meta::Assign);
+                        let node = ast.get_scope(scope.clone()).insert(&Data::Assign);
                         self.step();
                         if self.token.value == "to" {
                             self.step();
-                            if self.type_codes.contains(&self.token.category) {
-                                node.insert(&Meta::from_str(&self.token.category).unwrap());
+                            match self.token.category {
+                                Meta::WHL => {
+                                    node.insert(&Data::Whole(self.token.value.clone().parse().unwrap()));
+                                },
+                                Meta::INT => {
+                                    node.insert(&Data::Integer(self.token.value.clone().parse().unwrap()));
+                                },
+                                Meta::FLT => {
+                                    node.insert(&Data::Float(self.token.value.clone().parse().unwrap()));
+                                },
+                                Meta::REF => {
+                                    node.insert(&Data::Identifier(self.token.value.clone()));
+                                }
+                                _ => {
+                                    panic!("expected expression");
+                                }
                             }
                         }
                     }
@@ -250,11 +274,11 @@ impl Parser {
     }
 }
 
-fn create_token_factory(code: String) -> TokenFactory {
+fn create_lexer(code: String) -> Lexer {
     let character = code.chars().nth(0).expect("blank code string detected");
     let mut comfns: HashMap<char, fn(Vec<f64>) -> f64> = HashMap::new();
     comfns.insert('+', add);
-    TokenFactory {
+    Lexer {
         code,
         index: 0,
         character,
@@ -264,7 +288,7 @@ fn create_token_factory(code: String) -> TokenFactory {
         commutators: "+*=".to_string(),
         comfns,
         brackets: "()[]{}".to_string(),
-        keywords: vec!["declare".to_string(), "as".to_string(), "set".to_string().to_string(), "to".to_string()],
+        keywords: vec!["declare".to_string(), "as".to_string(), "set".to_string(), "to".to_string()],
     }
 }
 
@@ -275,14 +299,13 @@ fn create_parser(tokens: Vec<Token>) -> Parser {
         tokens,
         token,
         end: false,
-        type_codes: ["WHL".to_string(), "INT".to_string(), "FLT".to_string(), "STR".to_string()].to_vec(),
     }
 }
 
 fn main() {
-    let code = "declare x as int\nset x to 1".to_string();
-    let mut token_factory = create_token_factory(code);
-    let tokens = token_factory.get_tokens();
+    let code = "declare x as integer\ndeclare y as integer\nset x to 1\nset y to x".to_string();
+    let mut lexer = create_lexer(code);
+    let tokens = lexer.get_tokens();
     for token in &tokens {
         println!("{token}");
     }
