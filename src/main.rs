@@ -6,8 +6,6 @@ use std::{any::Any, collections::HashMap, fmt, str::FromStr};
 mod functions;
 use functions::add;
 
-struct Main {}
-
 #[derive(Debug, PartialEq, Clone, EnumString, Display)]
 enum Meta {
     REF,
@@ -26,11 +24,12 @@ enum Data {
     Main,
     Declare,
     Assign,
-    Identifier(String),
-    Type(String),
-    Whole(usize),
-    Integer(isize),
-    Float(f64),
+    Identifier { name: String },
+    Type { name: String },
+    Null,
+    Whole { value: usize },
+    Integer{ value: isize},
+    Float { value: f64 },
 }
 
 #[derive(Clone)]
@@ -122,12 +121,11 @@ impl Lexer {
     }
 }
 
-struct Variable<'a> {
-    value: &'a dyn Any,
-    category: String,
+#[derive(Debug)]
+struct Variable {
+    value: Data,
+    data_type: Data,
 }
-
-
 
 #[derive(Debug, Clone)]
 struct Tree {
@@ -227,14 +225,14 @@ impl Parser {
                             panic!("expected REF");
                         }
                         let node = ast.get_scope(scope.clone()).insert(&Data::Declare);
-                        node.insert(&Data::Identifier(self.token.value.clone()));
+                        node.insert(&Data::Identifier { name: self.token.value.clone() });
                         self.step();
                         if self.token.value == "as" {
                             self.step();
                             if self.token.category != Meta::TYP {
                                 panic!("expected TYP");
                             }
-                            node.insert(&Data::Type(self.token.value.clone()));
+                            node.insert(&Data::Type { name: self.token.value.clone() });
                         }
                     }
                     if self.token.value == "set" {
@@ -243,21 +241,22 @@ impl Parser {
                             panic!("expected REF");
                         }
                         let node = ast.get_scope(scope.clone()).insert(&Data::Assign);
+                        node.insert(&Data::Identifier { name: self.token.value.clone() });
                         self.step();
                         if self.token.value == "to" {
                             self.step();
                             match self.token.category {
                                 Meta::WHL => {
-                                    node.insert(&Data::Whole(self.token.value.clone().parse().unwrap()));
+                                    node.insert(&Data::Whole { value: self.token.value.clone().parse().unwrap() });
                                 },
                                 Meta::INT => {
-                                    node.insert(&Data::Integer(self.token.value.clone().parse().unwrap()));
+                                    node.insert(&Data::Integer { value: self.token.value.clone().parse().unwrap() });
                                 },
                                 Meta::FLT => {
-                                    node.insert(&Data::Float(self.token.value.clone().parse().unwrap()));
+                                    node.insert(&Data::Float { value: self.token.value.clone().parse().unwrap() });
                                 },
                                 Meta::REF => {
-                                    node.insert(&Data::Identifier(self.token.value.clone()));
+                                    node.insert(&Data::Identifier { name: self.token.value.clone() });
                                 }
                                 _ => {
                                     panic!("expected expression");
@@ -271,6 +270,48 @@ impl Parser {
             self.step();
         }
         ast
+    }
+}
+
+struct Interpreter {
+    tree: Tree,
+    memory: HashMap<String, Variable>,
+}
+
+impl Interpreter {
+    fn interpret(&mut self) -> &mut HashMap<String, Variable> {
+        let current = &self.tree.root;
+        for node in &current.nodes {
+            match node.data {
+                Data::Declare => {
+                    match &node.nodes[0].data {
+                        Data::Identifier { name } => {
+                            self.memory.insert(name.clone(), Variable {
+                                value: Data::Null,
+                                data_type: node.nodes[1].data.clone(),
+                            });
+                        },
+                        _ => {}
+                    }
+                },
+                Data::Assign => {
+                    match &node.nodes[0].data {
+                        Data::Identifier { name } => {
+                            // conflicting name variables
+                            let value = if matches!(&node.nodes[1].data, Data::Identifier { name }) { self.memory.get(name).unwrap().value.clone() } else { node.nodes[1].data.clone() };
+                            print!("{value}");
+                            self.memory.insert(name.clone(), Variable {
+                                value,
+                                data_type: self.memory.get(&name.clone()).unwrap().data_type.clone(),
+                            });
+                        },
+                        _ => {}
+                    }
+                },
+                _ => {}
+            }
+        }
+        &mut self.memory
     }
 }
 
@@ -312,4 +353,10 @@ fn main() {
     let mut parser = create_parser(tokens);
     let ast = parser.parse();
     println!("{ast:?}");
+    let mut interpreter = Interpreter {
+        tree: ast,
+        memory: HashMap::new(),
+    };
+    let memory = interpreter.interpret();
+    println!("{memory:?}");
 }
