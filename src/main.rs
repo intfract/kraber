@@ -105,7 +105,7 @@ impl Lexer {
                     tokens.push(Token { value: word, category: Meta::KEY });
                 } else if word == "false" || word == "true" {
                     tokens.push(Token { value: word, category: Meta::BLN });
-                } else if ["whole".to_string(), "integer".to_string(), "float".to_string()].contains(&word) {
+                } else if ["whole".to_string(), "integer".to_string(), "float".to_string(), "text".to_string()].contains(&word) {
                     tokens.push(Token { value: word, category: Meta::TYP });
                 } else if word == "fun" {
                     tokens.push(Token { value: word, category: Meta::FUN });
@@ -270,6 +270,9 @@ impl Parser {
                                 Meta::FLT => {
                                     node.insert(&Data::Float { value: self.token.value.clone().parse().unwrap() });
                                 },
+                                Meta::TXT => {
+                                    node.insert(&Data::Text { value: self.token.value.clone() });
+                                },
                                 Meta::REF => {
                                     node.insert(&Data::Identifier { name: self.token.value.clone() });
                                 }
@@ -282,7 +285,10 @@ impl Parser {
                 },
                 Meta::TXT => {
                     ast.get_scope(scope.clone()).insert(&Data::Text { value: self.token.value.clone() });
-                }
+                },
+                Meta::REF => {
+                    ast.get_scope(scope.clone()).insert(&Data::Identifier { name: self.token.value.clone() });
+                },
                 _ => {}
             }
             self.step();
@@ -310,7 +316,7 @@ impl Interpreter {
                             });
                         },
                         _ => {}
-                    }
+                    };
                 },
                 Data::Assign => {
                     match &node.nodes[0].data {
@@ -345,13 +351,25 @@ impl Interpreter {
                             });
                         },
                         _ => {}
-                    }
+                    };
                 },
                 Data::Text { value } => {
-                    println!("{}", value);
+                    println!("{}", value); // implicit print
+                },
+                Data::Identifier { name } => {
+                    let x = &self.memory.get(&name.clone()).unwrap().value;
+                    match x {
+                        Data::Type { name } => println!("{name}"),
+                        Data::Null => println!("null"),
+                        Data::Whole { value } => println!("{value}"),
+                        Data::Integer { value } => println!("{value}"),
+                        Data::Float { value } => println!("{value}"),
+                        Data::Text { value } => println!("{value}"),
+                        _ => {}
+                    };
                 },
                 _ => {}
-            }
+            };
         }
         &mut self.memory
     }
@@ -359,8 +377,6 @@ impl Interpreter {
 
 fn create_lexer(code: String) -> Lexer {
     let character = code.chars().nth(0).expect("blank code string detected");
-    let mut comfns: HashMap<char, fn(Vec<f64>) -> f64> = HashMap::new();
-    comfns.insert('+', add);
     Lexer {
         code,
         index: 0,
@@ -383,7 +399,7 @@ fn create_parser(tokens: Vec<Token>) -> Parser {
 }
 
 fn main() {
-    let code = "declare x as whole\ndeclare y as whole\nset x to 1\nset y to x\n\"implicit print\"".to_string();
+    let code = "declare x as whole\ndeclare y as whole\ndeclare z as text\nset x to 1\nset y to x\nset z to \"hello\"\nz".to_string();
     let mut lexer = create_lexer(code);
     let tokens = lexer.get_tokens();
     for token in &tokens {
