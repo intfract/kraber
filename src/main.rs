@@ -28,6 +28,7 @@ enum Data {
     Whole { value: usize },
     Integer{ value: isize},
     Float { value: f64 },
+    Boolean { value: bool },
     Text { value: String },
 }
 
@@ -98,6 +99,13 @@ impl Lexer {
 
     fn get_tokens(&mut self) -> Vec<Token> {
         let mut tokens: Vec<Token> = Vec::new();
+        let types = [
+            "whole".to_string(),
+            "integer".to_string(),
+            "float".to_string(),
+            "boolean".to_string(),
+            "text".to_string(),
+        ];
         while !self.end {
             if self.letters.contains(self.character) {
                 let word = self.get_word();
@@ -105,7 +113,7 @@ impl Lexer {
                     tokens.push(Token { value: word, category: Meta::KEY });
                 } else if word == "false" || word == "true" {
                     tokens.push(Token { value: word, category: Meta::BLN });
-                } else if ["whole".to_string(), "integer".to_string(), "float".to_string(), "text".to_string()].contains(&word) {
+                } else if types.contains(&word) {
                     tokens.push(Token { value: word, category: Meta::TYP });
                 } else if word == "fun" {
                     tokens.push(Token { value: word, category: Meta::FUN });
@@ -270,6 +278,9 @@ impl Parser {
                                 Meta::FLT => {
                                     node.insert(&Data::Float { value: self.token.value.clone().parse().unwrap() });
                                 },
+                                Meta::BLN => {
+                                    node.insert(&Data::Boolean { value: self.token.value.clone().parse().unwrap() });
+                                },
                                 Meta::TXT => {
                                     node.insert(&Data::Text { value: self.token.value.clone() });
                                 },
@@ -364,6 +375,7 @@ impl Interpreter {
                         Data::Whole { value } => println!("{value}"),
                         Data::Integer { value } => println!("{value}"),
                         Data::Float { value } => println!("{value}"),
+                        Data::Boolean { value } => println!("{value}"),
                         Data::Text { value } => println!("{value}"),
                         _ => {}
                     };
@@ -399,7 +411,7 @@ fn create_parser(tokens: Vec<Token>) -> Parser {
 }
 
 fn main() {
-    let code = "declare x as whole\ndeclare y as whole\ndeclare z as text\nset x to 1\nset y to x\nset z to \"hello\"\nz".to_string();
+    let code = "declare x as whole\ndeclare y as whole\ndeclare z as boolean\nset x to 1\nset y to x\nset z to true\nz".to_string();
     let mut lexer = create_lexer(code);
     let tokens = lexer.get_tokens();
     for token in &tokens {
