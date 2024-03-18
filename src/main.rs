@@ -12,8 +12,9 @@ enum Meta {
     FLT,
     KEY,
     BLN,
-    COM,
-    BRK,
+    FUN,
+    PAR,
+    TXT,
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -27,6 +28,7 @@ enum Data {
     Whole { value: usize },
     Integer{ value: isize},
     Float { value: f64 },
+    Text { value: String },
 }
 
 impl fmt::Display for Data {
@@ -54,9 +56,6 @@ struct Lexer {
     end: bool,
     letters: String,
     digits: String,
-    commutators: String,
-    comfns: HashMap<char, fn(Vec<f64>) -> f64>,
-    brackets: String,
     keywords: Vec<String>,
 }
 
@@ -88,6 +87,15 @@ impl Lexer {
         number
     }
 
+    fn get_string(&mut self) -> String {
+        let mut text: String = "".to_string();
+        while !self.end && self.character != '"' {
+            text.push(self.character);
+            self.step();
+        }
+        text
+    }
+
     fn get_tokens(&mut self) -> Vec<Token> {
         let mut tokens: Vec<Token> = Vec::new();
         while !self.end {
@@ -99,24 +107,28 @@ impl Lexer {
                     tokens.push(Token { value: word, category: Meta::BLN });
                 } else if ["whole".to_string(), "integer".to_string(), "float".to_string()].contains(&word) {
                     tokens.push(Token { value: word, category: Meta::TYP });
+                } else if word == "fun" {
+                    tokens.push(Token { value: word, category: Meta::FUN });
                 } else {
                     tokens.push(Token { value: word, category: Meta::REF });
                 }
-            } /* else if self.commutators.contains(self.character) {
-                tokens.push(Token { value: self.character.to_string(), category: Meta::COM })
-            }  */else if self.digits.contains(self.character) || self.character == '+' || self.character == '-' {
+            } else if self.digits.contains(self.character) || self.character == '+' || self.character == '-' {
                 let mut number = self.character.to_string();
                 self.step();
                 number.push_str(&self.get_number());
                 if number.contains('.') {
-                    tokens.push(Token { value: number, category: Meta::FLT })
+                    tokens.push(Token { value: number, category: Meta::FLT });
                 } else if number.contains('+') || number.contains('-') {
-                    tokens.push(Token { value: number, category: Meta::INT })
+                    tokens.push(Token { value: number, category: Meta::INT });
                 } else {
-                    tokens.push(Token { value: number, category: Meta::WHL })
+                    tokens.push(Token { value: number, category: Meta::WHL });
                 }
-            } else if self.brackets.contains(self.character) {
-                tokens.push(Token { value: self.character.to_string(), category: Meta::BRK })
+            } else if "()".contains(self.character) {
+                tokens.push(Token { value: self.character.to_string(), category: Meta::PAR })
+            } else if self.character == '"' {
+                self.step();
+                let text = self.get_string();
+                tokens.push(Token { value: text, category: Meta::TXT });
             }
             self.step();
         }
@@ -268,6 +280,9 @@ impl Parser {
                         }
                     }
                 },
+                Meta::TXT => {
+                    ast.get_scope(scope.clone()).insert(&Data::Text { value: self.token.value.clone() });
+                }
                 _ => {}
             }
             self.step();
@@ -285,7 +300,7 @@ impl Interpreter {
     fn interpret(&mut self) -> &mut HashMap<String, Variable> {
         let current = &self.tree.root;
         for node in &current.nodes {
-            match node.data {
+            match &node.data {
                 Data::Declare => {
                     match &node.nodes[0].data {
                         Data::Identifier { name } => {
@@ -332,6 +347,9 @@ impl Interpreter {
                         _ => {}
                     }
                 },
+                Data::Text { value } => {
+                    println!("{}", value);
+                },
                 _ => {}
             }
         }
@@ -350,9 +368,6 @@ fn create_lexer(code: String) -> Lexer {
         end: false,
         letters: "abcdefghijklmnopqrstuvwxyz_".to_string(),
         digits: "0123456789".to_string(),
-        commutators: "+*=".to_string(),
-        comfns,
-        brackets: "()[]{}".to_string(),
         keywords: vec!["declare".to_string(), "as".to_string(), "set".to_string(), "to".to_string()],
     }
 }
@@ -368,7 +383,7 @@ fn create_parser(tokens: Vec<Token>) -> Parser {
 }
 
 fn main() {
-    let code = "declare x as whole\ndeclare y as whole\nset x to 1\nset y to x".to_string();
+    let code = "declare x as whole\ndeclare y as whole\nset x to 1\nset y to x\n\"implicit print\"".to_string();
     let mut lexer = create_lexer(code);
     let tokens = lexer.get_tokens();
     for token in &tokens {
