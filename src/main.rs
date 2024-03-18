@@ -1,12 +1,9 @@
-extern crate strum;
-#[macro_use] extern crate strum_macros;
-
-use std::{any::Any, collections::HashMap, fmt, str::FromStr};
+use std::{collections::HashMap, fmt,};
 
 mod functions;
 use functions::add;
 
-#[derive(Debug, PartialEq, Clone, EnumString, Display)]
+#[derive(Debug, PartialEq, Clone)]
 enum Meta {
     REF,
     TYP,
@@ -19,7 +16,7 @@ enum Meta {
     BRK,
 }
 
-#[derive(Debug, PartialEq, Clone, EnumString, Display)]
+#[derive(Debug, PartialEq, Clone)]
 enum Data {
     Main,
     Declare,
@@ -32,6 +29,12 @@ enum Data {
     Float { value: f64 },
 }
 
+impl fmt::Display for Data {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:?}", self)
+    }
+}
+
 #[derive(Clone)]
 struct Token {
     value: String,
@@ -40,7 +43,7 @@ struct Token {
 
 impl fmt::Display for Token {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{} {}", self.category, self.value)
+        write!(f, "{:?} {}", self.category, self.value)
     }
 }
 
@@ -99,9 +102,9 @@ impl Lexer {
                 } else {
                     tokens.push(Token { value: word, category: Meta::REF });
                 }
-            } else if self.commutators.contains(self.character) {
+            } /* else if self.commutators.contains(self.character) {
                 tokens.push(Token { value: self.character.to_string(), category: Meta::COM })
-            } else if self.digits.contains(self.character) || self.character == '+' || self.character == '-' {
+            }  */else if self.digits.contains(self.character) || self.character == '+' || self.character == '-' {
                 let mut number = self.character.to_string();
                 self.step();
                 number.push_str(&self.get_number());
@@ -297,12 +300,33 @@ impl Interpreter {
                 Data::Assign => {
                     match &node.nodes[0].data {
                         Data::Identifier { name } => {
-                            // conflicting name variables
-                            let value = if matches!(&node.nodes[1].data, Data::Identifier { name }) { self.memory.get(name).unwrap().value.clone() } else { node.nodes[1].data.clone() };
-                            print!("{value}");
+                            let data_type = self.memory.get(&name.clone()).unwrap().data_type.clone();
+                            let value = match &node.nodes[1].data {
+                                Data::Identifier { name: var_name } => {
+                                    let var_data_type = self.memory.get(&var_name.clone()).unwrap().data_type.clone();
+                                    if data_type != var_data_type {
+                                        panic!("expected {data_type:?} but got {var_data_type:?}");
+                                    }
+                                    self.memory.get(var_name).unwrap().value.clone()
+                                },
+                                _ => {
+                                    let x = node.nodes[1].data.clone().to_string().to_lowercase();
+                                    let index = x.find(' ').unwrap();
+                                    let var_type_name: String = x.chars().into_iter().take(index).collect();
+                                    match &data_type {
+                                        Data::Type { name: type_name } => {
+                                            if type_name.to_string() != var_type_name {
+                                                panic!("expected {type_name:?} but got {var_type_name:?}");
+                                            }
+                                        },
+                                        _ => {}
+                                    }
+                                    node.nodes[1].data.clone()
+                                }
+                            };
                             self.memory.insert(name.clone(), Variable {
                                 value,
-                                data_type: self.memory.get(&name.clone()).unwrap().data_type.clone(),
+                                data_type,
                             });
                         },
                         _ => {}
@@ -344,7 +368,7 @@ fn create_parser(tokens: Vec<Token>) -> Parser {
 }
 
 fn main() {
-    let code = "declare x as integer\ndeclare y as integer\nset x to 1\nset y to x".to_string();
+    let code = "declare x as whole\ndeclare y as whole\nset x to 1\nset y to x".to_string();
     let mut lexer = create_lexer(code);
     let tokens = lexer.get_tokens();
     for token in &tokens {
