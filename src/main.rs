@@ -1,7 +1,4 @@
-use std::{collections::HashMap, fmt,};
-
-mod functions;
-use functions::add;
+use std::{collections::HashMap, fmt};
 
 #[derive(Debug, PartialEq, Clone)]
 enum Meta {
@@ -22,6 +19,8 @@ enum Data {
     Main,
     Declare,
     Assign,
+    Function { body: fn(Vec<Data>) -> Data },
+    Call { callee: String },
     Identifier { name: String },
     Type { name: String },
     Null,
@@ -30,6 +29,33 @@ enum Data {
     Float { value: f64 },
     Boolean { value: bool },
     Text { value: String },
+}
+
+fn nand(args: Vec<Data>) -> Data {
+    if args.len() != 2 {
+        panic!("received invalid number of parameters ({}) for binary function", args.len());
+    }
+    Data::Boolean {
+        value: !(
+            match args[0] {
+                Data::Boolean { value } => {
+                    value
+                },
+                _ => {
+                    panic!("expected Data::Boolean");
+                }
+            }
+            &&
+            match args[1] {
+                Data::Boolean { value } => {
+                    value
+                },
+                _ => {
+                    panic!("expected Data::Boolean");
+                }
+            }
+        )
+    }
 }
 
 impl fmt::Display for Data {
@@ -239,6 +265,7 @@ impl Parser {
     fn parse(&mut self) -> Tree {
         let mut ast = Tree::new();
         let mut scope: Vec<usize> = [].to_vec();
+        ast.root.insert(&Data::Function { body: nand });
         while !self.end {
             match self.token.category {
                 Meta::KEY => {
@@ -286,7 +313,10 @@ impl Parser {
                                 },
                                 Meta::REF => {
                                     node.insert(&Data::Identifier { name: self.token.value.clone() });
-                                }
+                                },
+                                Meta::PAR => {
+                                    node.insert(&Data::Call { callee: todo!() });
+                                },
                                 _ => {
                                     panic!("expected expression");
                                 }
