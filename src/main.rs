@@ -19,7 +19,16 @@ enum Data {
     Main,
     Declare,
     Assign,
-    Function { body: fn(Vec<Data>) -> Data },
+    KraberFunction {
+        param_types: Vec<String>,
+        body: fn(Vec<Data>) -> Data,
+    },
+    Function {
+        params: Vec<String>,
+        param_types: Vec<Data>,
+        body: Box<Tree>,
+    },
+    Arguments { value: Vec<Data> },
     Call { callee: String },
     Identifier { name: String },
     Type { name: String },
@@ -146,6 +155,7 @@ impl Lexer {
                 } else {
                     tokens.push(Token { value: word, category: Meta::REF });
                 }
+                continue;
             } else if self.digits.contains(self.character) || self.character == '+' || self.character == '-' {
                 let mut number = self.character.to_string();
                 self.step();
@@ -157,6 +167,7 @@ impl Lexer {
                 } else {
                     tokens.push(Token { value: number, category: Meta::WHL });
                 }
+                continue;
             } else if "()".contains(self.character) {
                 tokens.push(Token { value: self.character.to_string(), category: Meta::PAR })
             } else if self.character == '"' {
@@ -176,12 +187,12 @@ struct Variable {
     data_type: Data,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, PartialEq, Clone)]
 struct Tree {
     root: Node,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, PartialEq, Clone)]
 struct Node {
     id: usize,
     data: Data,
@@ -265,7 +276,6 @@ impl Parser {
     fn parse(&mut self) -> Tree {
         let mut ast = Tree::new();
         let mut scope: Vec<usize> = [].to_vec();
-        ast.root.insert(&Data::Function { body: nand });
         while !self.end {
             match self.token.category {
                 Meta::KEY => {
@@ -295,32 +305,7 @@ impl Parser {
                         self.step();
                         if self.token.value == "to" {
                             self.step();
-                            match self.token.category {
-                                Meta::WHL => {
-                                    node.insert(&Data::Whole { value: self.token.value.clone().parse().unwrap() });
-                                },
-                                Meta::INT => {
-                                    node.insert(&Data::Integer { value: self.token.value.clone().parse().unwrap() });
-                                },
-                                Meta::FLT => {
-                                    node.insert(&Data::Float { value: self.token.value.clone().parse().unwrap() });
-                                },
-                                Meta::BLN => {
-                                    node.insert(&Data::Boolean { value: self.token.value.clone().parse().unwrap() });
-                                },
-                                Meta::TXT => {
-                                    node.insert(&Data::Text { value: self.token.value.clone() });
-                                },
-                                Meta::REF => {
-                                    node.insert(&Data::Identifier { name: self.token.value.clone() });
-                                },
-                                Meta::PAR => {
-                                    node.insert(&Data::Call { callee: todo!() });
-                                },
-                                _ => {
-                                    panic!("expected expression");
-                                }
-                            }
+                            self.build_expression(node);
                         }
                     }
                 },
@@ -336,6 +321,49 @@ impl Parser {
         }
         ast
     }
+
+    fn build_expression(&mut self, node: &mut Node) {
+        match self.token.category {
+            Meta::WHL => {
+                node.insert(&Data::Whole { value: self.token.value.clone().parse().unwrap() });
+            },
+            Meta::INT => {
+                node.insert(&Data::Integer { value: self.token.value.clone().parse().unwrap() });
+            },
+            Meta::FLT => {
+                node.insert(&Data::Float { value: self.token.value.clone().parse().unwrap() });
+            },
+            Meta::BLN => {
+                node.insert(&Data::Boolean { value: self.token.value.clone().parse().unwrap() });
+            },
+            Meta::TXT => {
+                node.insert(&Data::Text { value: self.token.value.clone() });
+            },
+            Meta::REF => {
+                let sub_node = node.insert(&Data::Identifier { name: self.token.value.clone() });
+                let mut counter: usize = 0;
+                if self.index < self.tokens.len() - 1 && matches!(self.tokens[self.index + 1].category, Meta::PAR) {
+                    self.step();
+                    if self.token.value == "(" {
+                        counter += 1;
+                        while !self.end && counter != 0 {
+                            if self.token.value == "(" {
+                                counter += 1;
+                            } else if self.token.value == ")" {
+                                counter -= 1;
+                            } else {
+                                self.build_expression(sub_node);
+                            }
+                            self.step();
+                        }
+                    }
+                }
+            },
+            _ => {
+                panic!("expected expression");
+            }
+        }
+    }
 }
 
 struct Interpreter {
@@ -346,6 +374,7 @@ struct Interpreter {
 impl Interpreter {
     fn interpret(&mut self) -> &mut HashMap<String, Variable> {
         let current = &self.tree.root;
+        self.memory.insert("nand".to_string(), Variable { value: Data::KraberFunction { param_types: ["boolean".to_string(), "boolean".to_string()].to_vec(), body: nand }, data_type: Data::Type { name: "kraberfunction".to_string() } });
         for node in &current.nodes {
             match &node.data {
                 Data::Declare => {
@@ -365,11 +394,35 @@ impl Interpreter {
                             let data_type = self.memory.get(&name.clone()).unwrap().data_type.clone();
                             let value = match &node.nodes[1].data {
                                 Data::Identifier { name: var_name } => {
-                                    let var_data_type = self.memory.get(&var_name.clone()).unwrap().data_type.clone();
-                                    if data_type != var_data_type {
-                                        panic!("expected {data_type:?} but got {var_data_type:?}");
+                                    let var_data = self.memory.get(&var_name.clone()).unwrap();
+                                    let var_data_value = var_data.value.clone();
+                                    let var_data_type = var_data.data_type.clone();
+                                    match &var_data_type {
+                                        Data::Type { name: type_name } => {
+                                            if type_name == "kraberfunction" {
+                                                match &var_data_value {
+                                                    Data::KraberFunction { param_types, body } => {
+                                                        let args: Vec<Data> = node.nodes[1].nodes.iter().map(|x| x.data.clone()).collect();
+                                                        if args.len() != param_types.len() {
+                                                            panic!("{var_name} expected {param_types:?} but got {args:?}");
+                                                        }
+                                                        body(args)
+                                                    },
+                                                    _ => {
+                                                        panic!("invalid kraber function node");
+                                                    }
+                                                }
+                                            } else {
+                                                if data_type != var_data_type {
+                                                    panic!("expected {data_type:?} but got {var_data_type:?}");
+                                                }
+                                                self.memory.get(var_name).unwrap().value.clone()
+                                            }
+                                        },
+                                        _ => {
+                                            panic!("invalid data_type field of {}", var_data_type);
+                                        }
                                     }
-                                    self.memory.get(var_name).unwrap().value.clone()
                                 },
                                 _ => {
                                     let x = node.nodes[1].data.clone().to_string().to_lowercase();
@@ -441,7 +494,7 @@ fn create_parser(tokens: Vec<Token>) -> Parser {
 }
 
 fn main() {
-    let code = "declare x as whole\ndeclare y as whole\ndeclare z as boolean\nset x to 1\nset y to x\nset z to true\nz".to_string();
+    let code = "declare x as boolean\nset x to nand(true true)".to_string();
     let mut lexer = create_lexer(code);
     let tokens = lexer.get_tokens();
     for token in &tokens {
