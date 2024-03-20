@@ -422,7 +422,6 @@ impl Interpreter {
         return match &expression.nodes[0].data {
             Data::Identifier { name } => {
                 let var = self.memory.get(&name.clone()).unwrap();
-                println!("{:#?}", name);
                 let data: Data = match &var.value {
                     Data::KraberFunction { param_types, body } => {
                         let args: Vec<Data> = expression.nodes[0].nodes[1].nodes.iter().map(|x| x.data.clone()).collect();
@@ -444,8 +443,14 @@ impl Interpreter {
     }
 
     fn loop_while(&mut self, expression: Node, body: Node) {
+        let mut nodes: Vec<Node> = Vec::new();
+        nodes.push(body);
         let tree = Tree {
-            root: body,
+            root: Node {
+                id: 0,
+                data: Data::Main,
+                nodes,
+            },
         };
         let mut sub = Interpreter {
             tree,
@@ -461,7 +466,6 @@ impl Interpreter {
         };
         while condition {
             sub.interpret();
-            println!("{:#?}", sub.memory);
             condition = match sub.eval_expression(expression.clone()) {
                 Data::Boolean { value } => {
                     value
@@ -470,9 +474,8 @@ impl Interpreter {
                     panic!("expected boolean");
                 }
             };
-            println!("{condition}");
-            condition = false;
         }
+        self.memory = sub.memory.clone();
     }
 
     fn interpret(&mut self) -> &mut HashMap<String, Variable> {
@@ -480,7 +483,6 @@ impl Interpreter {
         for node in self.tree.root.nodes.clone() {
             match &node.data {
                 Data::While => {
-                    println!("{:#?}", node.nodes[1].clone());
                     self.loop_while(node.nodes[0].clone(), node.nodes[1].clone());
                 },
                 Data::Declare => {
@@ -556,19 +558,19 @@ impl Interpreter {
                 Data::Text { value } => {
                     println!("{}", value); // implicit print
                 },
-                // Data::Identifier { name } => {
-                //     let x = &self.memory.get(&name.clone()).unwrap().value;
-                //     match x {
-                //         Data::Type { name } => println!("{name}"),
-                //         Data::Null => println!("null"),
-                //         Data::Whole { value } => println!("{value}"),
-                //         Data::Integer { value } => println!("{value}"),
-                //         Data::Float { value } => println!("{value}"),
-                //         Data::Boolean { value } => println!("{value}"),
-                //         Data::Text { value } => println!("{value}"),
-                //         _ => {}
-                //     };
-                // },
+                Data::Identifier { name } => {
+                    let x = &self.memory.get(&name.clone()).unwrap().value;
+                    match x {
+                        Data::Type { name } => println!("{name}"),
+                        Data::Null => println!("null"),
+                        Data::Whole { value } => println!("{value}"),
+                        Data::Integer { value } => println!("{value}"),
+                        Data::Float { value } => println!("{value}"),
+                        Data::Boolean { value } => println!("shit {value}"),
+                        Data::Text { value } => println!("{value}"),
+                        _ => {}
+                    };
+                },
                 _ => {}
             };
         }
@@ -600,7 +602,7 @@ fn create_parser(tokens: Vec<Token>) -> Parser {
 }
 
 fn main() {
-    let code = "declare x as boolean\nset x to true\nwhile x\n{\n\tset x to nand(true)\n}".to_string();
+    let code = "declare x as boolean\nset x to true\nwhile x\n{\n\tset x to false\n}".to_string();
     println!("{}", code);
     let mut lexer = create_lexer(code);
     let tokens = lexer.get_tokens();
