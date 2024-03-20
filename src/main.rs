@@ -9,9 +9,10 @@ enum Meta {
     FLT,
     KEY,
     BLN,
+    TXT,
     FUN,
     PAR,
-    TXT,
+    BRC,
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -19,6 +20,8 @@ enum Data {
     Main,
     Declare,
     Assign,
+    While,
+    Expression,
     KraberFunction {
         param_types: Vec<String>,
         body: fn(Vec<Data>) -> Data,
@@ -73,7 +76,7 @@ impl fmt::Display for Data {
     }
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 struct Token {
     value: String,
     category: Meta,
@@ -170,6 +173,8 @@ impl Lexer {
                 continue;
             } else if "()".contains(self.character) {
                 tokens.push(Token { value: self.character.to_string(), category: Meta::PAR })
+            } else if "{}s".contains(self.character) {
+                tokens.push(Token { value: self.character.to_string(), category: Meta::BRC })
             } else if self.character == '"' {
                 self.step();
                 let text = self.get_string();
@@ -181,7 +186,7 @@ impl Lexer {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct Variable {
     value: Data,
     data_type: Data,
@@ -277,9 +282,17 @@ impl Parser {
         let mut ast = Tree::new();
         let mut scope: Vec<usize> = [].to_vec();
         while !self.end {
-            match self.token.category {
-                Meta::KEY => {
-                    if self.token.value == "declare" {
+            self.build_tree(&mut ast, &mut scope);
+            self.step();
+        }
+        ast
+    }
+
+    fn build_tree(&mut self, ast: &mut Tree, scope: &mut Vec<usize>) {
+        match self.token.category {
+            Meta::KEY => {
+                match self.token.value.as_str() {
+                    "declare" => {
                         self.step();
                         if self.token.category != Meta::REF {
                             panic!("expected REF");
@@ -294,8 +307,8 @@ impl Parser {
                             }
                             node.insert(&Data::Type { name: self.token.value.clone() });
                         }
-                    }
-                    if self.token.value == "set" {
+                    },
+                    "set" => {
                         self.step();
                         if self.token.category != Meta::REF {
                             panic!("expected REF");
@@ -307,21 +320,50 @@ impl Parser {
                             self.step();
                             self.build_expression(node);
                         }
+                    },
+                    "while" => {
+                        self.step();
+                        let scoped_node = ast.get_scope(scope.clone());
+                        let node_id = scoped_node.nodes.len();
+                        scope.push(node_id);
+                        let node = scoped_node.insert(&Data::While);
+                        let sub_node = node.insert(&Data::Expression);
+                        if self.index >= self.tokens.len() - 1 {
+                            panic!("loop is missing a body");
+                        }
+                        while !self.end && !matches!(self.token.category, Meta::BRC) {
+                            self.build_expression(sub_node);
+                            self.step();
+                        }
+                        if self.token.value != "{" {
+                            panic!("expected opening of loop body");
+                        }
+                        let mut counter: usize = 1;
+                        self.step();
+                        while !self.end && counter != 0 {
+                            if self.token.value == "{" {
+                                counter += 1;
+                            } else if self.token.value == "}" {
+                                counter -= 1;
+                            } else {
+                                self.build_tree(ast, scope);
+                            }
+                            self.step();
+                        }
                     }
-                },
-                Meta::TXT => {
-                    ast.get_scope(scope.clone()).insert(&Data::Text { value: self.token.value.clone() });
-                },
-                Meta::REF => {
-                    ast.get_scope(scope.clone()).insert(&Data::Identifier { name: self.token.value.clone() });
-                },
-                _ => {}
-            }
-            self.step();
+                    _ => {}
+                }
+            },
+            Meta::TXT => {
+                ast.get_scope(scope.clone()).insert(&Data::Text { value: self.token.value.clone() });
+            },
+            Meta::REF => {
+                ast.get_scope(scope.clone()).insert(&Data::Identifier { name: self.token.value.clone() });
+            },
+            _ => {}
         }
-        ast
     }
-
+    
     fn build_expression(&mut self, node: &mut Node) {
         match self.token.category {
             Meta::WHL => {
@@ -341,26 +383,30 @@ impl Parser {
             },
             Meta::REF => {
                 let sub_node = node.insert(&Data::Identifier { name: self.token.value.clone() });
-                let mut counter: usize = 0;
                 if self.index < self.tokens.len() - 1 && matches!(self.tokens[self.index + 1].category, Meta::PAR) {
                     self.step();
-                    if self.token.value == "(" {
-                        counter += 1;
-                        while !self.end && counter != 0 {
-                            if self.token.value == "(" {
-                                counter += 1;
-                            } else if self.token.value == ")" {
-                                counter -= 1;
-                            } else {
-                                self.build_expression(sub_node);
-                            }
-                            self.step();
-                        }
+                    if self.token.value != "(" {
+                        panic!("invalid token {}", self.token);
                     }
+                    let mut counter: usize = 1;
+                    self.step();
+                    while !self.end && counter != 0 {
+                        if self.token.value == "(" {
+                            counter += 1;
+                        } else if self.token.value == ")" {
+                            counter -= 1;
+                        } else {
+                            self.build_expression(sub_node);
+                        }
+                        self.step();
+                    }
+                    self.index -= 1;
+                    self.token = self.tokens[self.index].clone();
                 }
             },
             _ => {
-                panic!("expected expression");
+                println!("{node:?}");
+                panic!("expected expression but got {:?}", self.token);
             }
         }
     }
@@ -372,11 +418,71 @@ struct Interpreter {
 }
 
 impl Interpreter {
+    fn eval_expression(&mut self, expression: Node) -> Data {
+        return match &expression.nodes[0].data {
+            Data::Identifier { name } => {
+                let var = self.memory.get(&name.clone()).unwrap();
+                println!("{:#?}", name);
+                let data: Data = match &var.value {
+                    Data::KraberFunction { param_types, body } => {
+                        let args: Vec<Data> = expression.nodes[0].nodes[1].nodes.iter().map(|x| x.data.clone()).collect();
+                        if args.len() != param_types.len() {
+                            panic!("{name} expected {param_types:#?} but got {args:#?}");
+                        }
+                        body(args)
+                    },
+                    _ => {
+                        var.value.clone()
+                    }
+                };
+                data
+            },
+            _ => {
+                panic!("unexpected node {:#?} in expression", expression.nodes[0]);
+            }
+        }
+    }
+
+    fn loop_while(&mut self, expression: Node, body: Node) {
+        let tree = Tree {
+            root: body,
+        };
+        let mut sub = Interpreter {
+            tree,
+            memory: self.memory.clone(),
+        };
+        let mut condition: bool = match self.eval_expression(expression.clone()) {
+            Data::Boolean { value } => {
+                value
+            },
+            _ => {
+                panic!("expected boolean");
+            }
+        };
+        while condition {
+            sub.interpret();
+            println!("{:#?}", sub.memory);
+            condition = match sub.eval_expression(expression.clone()) {
+                Data::Boolean { value } => {
+                    value
+                },
+                _ => {
+                    panic!("expected boolean");
+                }
+            };
+            println!("{condition}");
+            condition = false;
+        }
+    }
+
     fn interpret(&mut self) -> &mut HashMap<String, Variable> {
-        let current = &self.tree.root;
         self.memory.insert("nand".to_string(), Variable { value: Data::KraberFunction { param_types: ["boolean".to_string(), "boolean".to_string()].to_vec(), body: nand }, data_type: Data::Type { name: "kraberfunction".to_string() } });
-        for node in &current.nodes {
+        for node in self.tree.root.nodes.clone() {
             match &node.data {
+                Data::While => {
+                    println!("{:#?}", node.nodes[1].clone());
+                    self.loop_while(node.nodes[0].clone(), node.nodes[1].clone());
+                },
                 Data::Declare => {
                     match &node.nodes[0].data {
                         Data::Identifier { name } => {
@@ -404,7 +510,7 @@ impl Interpreter {
                                                     Data::KraberFunction { param_types, body } => {
                                                         let args: Vec<Data> = node.nodes[1].nodes.iter().map(|x| x.data.clone()).collect();
                                                         if args.len() != param_types.len() {
-                                                            panic!("{var_name} expected {param_types:?} but got {args:?}");
+                                                            panic!("{var_name} expected {param_types:#?} but got {args:#?}");
                                                         }
                                                         body(args)
                                                     },
@@ -450,19 +556,19 @@ impl Interpreter {
                 Data::Text { value } => {
                     println!("{}", value); // implicit print
                 },
-                Data::Identifier { name } => {
-                    let x = &self.memory.get(&name.clone()).unwrap().value;
-                    match x {
-                        Data::Type { name } => println!("{name}"),
-                        Data::Null => println!("null"),
-                        Data::Whole { value } => println!("{value}"),
-                        Data::Integer { value } => println!("{value}"),
-                        Data::Float { value } => println!("{value}"),
-                        Data::Boolean { value } => println!("{value}"),
-                        Data::Text { value } => println!("{value}"),
-                        _ => {}
-                    };
-                },
+                // Data::Identifier { name } => {
+                //     let x = &self.memory.get(&name.clone()).unwrap().value;
+                //     match x {
+                //         Data::Type { name } => println!("{name}"),
+                //         Data::Null => println!("null"),
+                //         Data::Whole { value } => println!("{value}"),
+                //         Data::Integer { value } => println!("{value}"),
+                //         Data::Float { value } => println!("{value}"),
+                //         Data::Boolean { value } => println!("{value}"),
+                //         Data::Text { value } => println!("{value}"),
+                //         _ => {}
+                //     };
+                // },
                 _ => {}
             };
         }
@@ -479,7 +585,7 @@ fn create_lexer(code: String) -> Lexer {
         end: false,
         letters: "abcdefghijklmnopqrstuvwxyz_".to_string(),
         digits: "0123456789".to_string(),
-        keywords: vec!["declare".to_string(), "as".to_string(), "set".to_string(), "to".to_string()],
+        keywords: vec!["declare".to_string(), "as".to_string(), "set".to_string(), "to".to_string(), "while".to_string()],
     }
 }
 
@@ -494,7 +600,8 @@ fn create_parser(tokens: Vec<Token>) -> Parser {
 }
 
 fn main() {
-    let code = "declare x as boolean\nset x to nand(true true)".to_string();
+    let code = "declare x as boolean\nset x to true\nwhile x\n{\n\tset x to nand(true)\n}".to_string();
+    println!("{}", code);
     let mut lexer = create_lexer(code);
     let tokens = lexer.get_tokens();
     for token in &tokens {
@@ -502,11 +609,11 @@ fn main() {
     }
     let mut parser = create_parser(tokens);
     let ast = parser.parse();
-    println!("{ast:?}");
+    println!("{ast:#?}");
     let mut interpreter = Interpreter {
         tree: ast,
         memory: HashMap::new(),
     };
     let memory = interpreter.interpret();
-    println!("{memory:?}");
+    println!("{memory:#?}");
 }
