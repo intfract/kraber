@@ -43,29 +43,26 @@ enum Data {
     Text { value: String },
 }
 
+fn expect_boolean(arg: Data) -> bool {
+    return match arg {
+        Data::Boolean { value } => {
+            value
+        },
+        _ => {
+            panic!("expected Data::Boolean but got {:#?}", arg);
+        }
+    }
+}
+
 fn nand(args: Vec<Data>) -> Data {
     if args.len() != 2 {
         panic!("received invalid number of parameters ({}) for binary function", args.len());
     }
     Data::Boolean {
         value: !(
-            match args[0] {
-                Data::Boolean { value } => {
-                    value
-                },
-                _ => {
-                    panic!("expected Data::Boolean");
-                }
-            }
+            expect_boolean(args[0].clone())
             &&
-            match args[1] {
-                Data::Boolean { value } => {
-                    value
-                },
-                _ => {
-                    panic!("expected Data::Boolean");
-                }
-            }
+            expect_boolean(args[1].clone())
         )
     }
 }
@@ -383,11 +380,8 @@ impl Parser {
             },
             Meta::REF => {
                 let sub_node = node.insert(&Data::Identifier { name: self.token.value.clone() });
-                if self.index < self.tokens.len() - 1 && matches!(self.tokens[self.index + 1].category, Meta::PAR) {
+                if self.index < self.tokens.len() - 1 && self.tokens[self.index + 1].value == "(" {
                     self.step();
-                    if self.token.value != "(" {
-                        panic!("invalid token {}", self.token);
-                    }
                     let mut counter: usize = 1;
                     self.step();
                     while !self.end && counter != 0 {
@@ -419,12 +413,27 @@ struct Interpreter {
 
 impl Interpreter {
     fn eval_expression(&mut self, expression: Node) -> Data {
+        println!("{:#?}", expression);
         return match &expression.nodes[0].data {
             Data::Identifier { name } => {
-                let var = self.memory.get(&name.clone()).unwrap();
+                let var = self.memory.get(&name.clone()).unwrap().clone();
                 let data: Data = match &var.value {
                     Data::KraberFunction { param_types, body } => {
-                        let args: Vec<Data> = expression.nodes[0].nodes[1].nodes.iter().map(|x| x.data.clone()).collect();
+                        let args: Vec<Data> = expression.nodes[0].nodes.iter().map(
+                            |x|
+                            if matches!(&x.data, Data::Identifier { name }) {
+                                let mut nodes: Vec<Node> = Vec::new();
+                                nodes.push(x.clone());
+                                let expression = Node {
+                                    id: 0,
+                                    data: Data::Expression,
+                                    nodes,
+                                };
+                                self.eval_expression(expression)
+                            } else {
+                                x.data.clone()
+                            }
+                        ).collect();
                         if args.len() != param_types.len() {
                             panic!("{name} expected {param_types:#?} but got {args:#?}");
                         }
@@ -510,7 +519,21 @@ impl Interpreter {
                                             if type_name == "kraberfunction" {
                                                 match &var_data_value {
                                                     Data::KraberFunction { param_types, body } => {
-                                                        let args: Vec<Data> = node.nodes[1].nodes.iter().map(|x| x.data.clone()).collect();
+                                                        let args: Vec<Data> = node.nodes[1].nodes.iter().map(
+                                                            |x|
+                                                            if matches!(&x.data, Data::Identifier { name }) {
+                                                                let mut nodes: Vec<Node> = Vec::new();
+                                                                nodes.push(x.clone());
+                                                                let expression = Node {
+                                                                    id: 0,
+                                                                    data: Data::Expression,
+                                                                    nodes,
+                                                                };
+                                                                self.eval_expression(expression)
+                                                            } else {
+                                                                x.data.clone()
+                                                            }
+                                                        ).collect();
                                                         if args.len() != param_types.len() {
                                                             panic!("{var_name} expected {param_types:#?} but got {args:#?}");
                                                         }
@@ -602,7 +625,7 @@ fn create_parser(tokens: Vec<Token>) -> Parser {
 }
 
 fn main() {
-    let code = "declare x as boolean\nset x to true\nwhile x\n{\n\tset x to false\n}".to_string();
+    let code = "declare x as boolean\nset x to true\nwhile x\n{\n\tset x to nand(x x)\n}".to_string();
     println!("{}", code);
     let mut lexer = create_lexer(code);
     let tokens = lexer.get_tokens();
