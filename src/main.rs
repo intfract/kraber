@@ -67,6 +67,28 @@ fn nand(args: Vec<Data>) -> Data {
     }
 }
 
+fn add(args: Vec<Data>) -> Data {
+    let mut sum: f64 = 0.0;
+    for arg in args {
+        let num: f64 = match arg {
+            Data::Whole { value } => {
+                value as f64
+            },
+            Data::Integer { value } => {
+                value as f64
+            },
+            Data::Float { value } => {
+                value
+            },
+            _ => {
+                panic!("{:#?} is not numeric", arg);
+            }
+        };
+        sum += num;
+    }
+    Data::Float { value: sum }
+}
+
 impl fmt::Display for Data {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{:?}", self)
@@ -434,9 +456,6 @@ impl Interpreter {
                                 x.data.clone()
                             }
                         ).collect();
-                        if args.len() != param_types.len() {
-                            panic!("{name} expected {param_types:#?} but got {args:#?}");
-                        }
                         body(args)
                     },
                     _ => {
@@ -534,9 +553,6 @@ impl Interpreter {
                                                                 x.data.clone()
                                                             }
                                                         ).collect();
-                                                        if args.len() != param_types.len() {
-                                                            panic!("{var_name} expected {param_types:#?} but got {args:#?}");
-                                                        }
                                                         body(args)
                                                     },
                                                     _ => {
