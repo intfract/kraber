@@ -192,7 +192,7 @@ impl Lexer {
                 continue;
             } else if "()".contains(self.character) {
                 tokens.push(Token { value: self.character.to_string(), category: Meta::PAR })
-            } else if "{}s".contains(self.character) {
+            } else if "{}".contains(self.character) {
                 tokens.push(Token { value: self.character.to_string(), category: Meta::BRC })
             } else if self.character == '"' {
                 self.step();
