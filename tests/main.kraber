@@ -1,8 +1,5 @@
-declare x as boolean
-declare y as float
-set x to true
-while x
-{
-  set x to nand(true true)
-  set y to add(1 1)
-}
+declare x as float
+set x to add(1 2)
+set x to multiply(x 2)
+set x to raise(x 2)
+x
