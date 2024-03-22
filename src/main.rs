@@ -1,4 +1,5 @@
 use std::{collections::HashMap, fmt};
+use std::{env, fs};
 
 #[derive(Debug, PartialEq, Clone)]
 enum Meta {
@@ -23,7 +24,6 @@ enum Data {
     While,
     Expression,
     KraberFunction {
-        param_types: Vec<String>,
         body: fn(Vec<Data>) -> Data,
     },
     Function {
@@ -50,6 +50,23 @@ fn expect_boolean(arg: Data) -> bool {
         },
         _ => {
             panic!("expected Data::Boolean but got {:#?}", arg);
+        }
+    }
+}
+
+fn expect_numeric(arg: Data) -> f64 {
+    return match arg {
+        Data::Whole { value } => {
+            value as f64
+        },
+        Data::Integer { value } => {
+            value as f64
+        },
+        Data::Float { value } => {
+            value
+        },
+        _ => {
+            panic!("{:#?} is not numeric", arg);
         }
     }
 }
@@ -87,6 +104,37 @@ fn add(args: Vec<Data>) -> Data {
         sum += num;
     }
     Data::Float { value: sum }
+}
+
+fn multiply(args: Vec<Data>) -> Data {
+    let mut product: f64 = 1.0;
+    for arg in args {
+        let num: f64 = match arg {
+            Data::Whole { value } => {
+                value as f64
+            },
+            Data::Integer { value } => {
+                value as f64
+            },
+            Data::Float { value } => {
+                value
+            },
+            _ => {
+                panic!("{:#?} is not numeric", arg);
+            }
+        };
+        product *= num;
+    }
+    Data::Float { value: product }
+}
+
+fn raise(args: Vec<Data>) -> Data {
+    Data::Float {
+        value: f64::powf(
+            expect_numeric(args[0].clone()),
+            expect_numeric(args[1].clone())
+        )
+    }
 }
 
 impl fmt::Display for Data {
@@ -377,7 +425,8 @@ impl Parser {
                 ast.get_scope(scope.clone()).insert(&Data::Text { value: self.token.value.clone() });
             },
             Meta::REF => {
-                ast.get_scope(scope.clone()).insert(&Data::Identifier { name: self.token.value.clone() });
+                let sub_node = ast.get_scope(scope.clone()).insert(&Data::Identifier { name: self.token.value.clone() });
+                self.build_expression(sub_node);
             },
             _ => {}
         }
@@ -435,12 +484,11 @@ struct Interpreter {
 
 impl Interpreter {
     fn eval_expression(&mut self, expression: Node) -> Data {
-        println!("{:#?}", expression);
         return match &expression.nodes[0].data {
             Data::Identifier { name } => {
                 let var = self.memory.get(&name.clone()).unwrap().clone();
                 let data: Data = match &var.value {
-                    Data::KraberFunction { param_types, body } => {
+                    Data::KraberFunction { body } => {
                         let args: Vec<Data> = expression.nodes[0].nodes.iter().map(
                             |x|
                             if matches!(&x.data, Data::Identifier { name }) {
@@ -465,19 +513,17 @@ impl Interpreter {
                 data
             },
             _ => {
-                panic!("unexpected node {:#?} in expression", expression.nodes[0]);
+                expression.nodes[0].data.clone()
             }
         }
     }
 
-    fn loop_while(&mut self, expression: Node, body: Node) {
-        let mut nodes: Vec<Node> = Vec::new();
-        nodes.push(body);
+    fn loop_while(&mut self, expression: Node, body: Vec<Node>) {
         let tree = Tree {
             root: Node {
                 id: 0,
                 data: Data::Main,
-                nodes,
+                nodes: body,
             },
         };
         let mut sub = Interpreter {
@@ -507,11 +553,14 @@ impl Interpreter {
     }
 
     fn interpret(&mut self) -> &mut HashMap<String, Variable> {
-        self.memory.insert("nand".to_string(), Variable { value: Data::KraberFunction { param_types: ["boolean".to_string(), "boolean".to_string()].to_vec(), body: nand }, data_type: Data::Type { name: "kraberfunction".to_string() } });
+        self.memory.insert("nand".to_string(), Variable { value: Data::KraberFunction { body: nand }, data_type: Data::Type { name: "kraberfunction".to_string() } });
+        self.memory.insert("add".to_string(), Variable { value: Data::KraberFunction { body: add }, data_type: Data::Type { name: "kraberfunction".to_string() } });
+        self.memory.insert("multiply".to_string(), Variable { value: Data::KraberFunction { body: multiply }, data_type: Data::Type { name: "kraberfunction".to_string() } });
+        self.memory.insert("raise".to_string(), Variable { value: Data::KraberFunction { body: raise }, data_type: Data::Type { name: "kraberfunction".to_string() } });
         for node in self.tree.root.nodes.clone() {
             match &node.data {
                 Data::While => {
-                    self.loop_while(node.nodes[0].clone(), node.nodes[1].clone());
+                    self.loop_while(node.nodes[0].clone(), node.nodes[1..].to_vec().clone());
                 },
                 Data::Declare => {
                     match &node.nodes[0].data {
@@ -528,64 +577,13 @@ impl Interpreter {
                     match &node.nodes[0].data {
                         Data::Identifier { name } => {
                             let data_type = self.memory.get(&name.clone()).unwrap().data_type.clone();
-                            let value = match &node.nodes[1].data {
-                                Data::Identifier { name: var_name } => {
-                                    let var_data = self.memory.get(&var_name.clone()).unwrap();
-                                    let var_data_value = var_data.value.clone();
-                                    let var_data_type = var_data.data_type.clone();
-                                    match &var_data_type {
-                                        Data::Type { name: type_name } => {
-                                            if type_name == "kraberfunction" {
-                                                match &var_data_value {
-                                                    Data::KraberFunction { param_types, body } => {
-                                                        let args: Vec<Data> = node.nodes[1].nodes.iter().map(
-                                                            |x|
-                                                            if matches!(&x.data, Data::Identifier { name }) {
-                                                                let mut nodes: Vec<Node> = Vec::new();
-                                                                nodes.push(x.clone());
-                                                                let expression = Node {
-                                                                    id: 0,
-                                                                    data: Data::Expression,
-                                                                    nodes,
-                                                                };
-                                                                self.eval_expression(expression)
-                                                            } else {
-                                                                x.data.clone()
-                                                            }
-                                                        ).collect();
-                                                        body(args)
-                                                    },
-                                                    _ => {
-                                                        panic!("invalid kraber function node");
-                                                    }
-                                                }
-                                            } else {
-                                                if data_type != var_data_type {
-                                                    panic!("expected {data_type:?} but got {var_data_type:?}");
-                                                }
-                                                self.memory.get(var_name).unwrap().value.clone()
-                                            }
-                                        },
-                                        _ => {
-                                            panic!("invalid data_type field of {}", var_data_type);
-                                        }
-                                    }
-                                },
-                                _ => {
-                                    let x = node.nodes[1].data.clone().to_string().to_lowercase();
-                                    let index = x.find(' ').unwrap();
-                                    let var_type_name: String = x.chars().into_iter().take(index).collect();
-                                    match &data_type {
-                                        Data::Type { name: type_name } => {
-                                            if type_name.to_string() != var_type_name {
-                                                panic!("expected {type_name:?} but got {var_type_name:?}");
-                                            }
-                                        },
-                                        _ => {}
-                                    }
-                                    node.nodes[1].data.clone()
-                                }
+                            let mut expression = Node {
+                                id: 0,
+                                data: Data::Expression,
+                                nodes: Vec::new(),
                             };
+                            expression.nodes.push(node.nodes[1].clone());
+                            let value = self.eval_expression(expression);
                             self.memory.insert(name.clone(), Variable {
                                 value,
                                 data_type,
@@ -607,6 +605,15 @@ impl Interpreter {
                         Data::Float { value } => println!("{value}"),
                         Data::Boolean { value } => println!("shit {value}"),
                         Data::Text { value } => println!("{value}"),
+                        Data::KraberFunction { body } => {
+                            let mut expression = Node {
+                                id: 0,
+                                data: Data::Expression,
+                                nodes: Vec::new(),
+                            };
+                            expression.nodes.push(node.clone());
+                            println!("{}", self.eval_expression(expression))
+                        }
                         _ => {}
                     };
                 },
@@ -641,13 +648,17 @@ fn create_parser(tokens: Vec<Token>) -> Parser {
 }
 
 fn main() {
-    let code = "declare x as boolean\nset x to true\nwhile x\n{\n\tset x to nand(x x)\n}".to_string();
+    let args: Vec<String> = env::args().collect();
+    if args.len() < 2 {
+        panic!("missing path to kraber file (cargo run -- <path>)");
+    }
+    let code = fs::read_to_string(&args[1]).expect("file not found");
     println!("{}", code);
     let mut lexer = create_lexer(code);
     let tokens = lexer.get_tokens();
-    for token in &tokens {
+    /* for token in &tokens {
         println!("{token}");
-    }
+    } */
     let mut parser = create_parser(tokens);
     let ast = parser.parse();
     println!("{ast:#?}");
