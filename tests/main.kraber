@@ -1,0 +1,8 @@
+declare x as boolean
+declare y as float
+set x to true
+while x
+{
+  set x to nand(true true)
+  set y to add(1 1)
+}

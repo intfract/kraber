@@ -1,4 +1,5 @@
 use std::{collections::HashMap, fmt};
+use std::fs;
 
 #[derive(Debug, PartialEq, Clone)]
 enum Meta {
@@ -23,7 +24,6 @@ enum Data {
     While,
     Expression,
     KraberFunction {
-        param_types: Vec<String>,
         body: fn(Vec<Data>) -> Data,
     },
     Function {
@@ -87,6 +87,28 @@ fn add(args: Vec<Data>) -> Data {
         sum += num;
     }
     Data::Float { value: sum }
+}
+
+fn multiply(args: Vec<Data>) -> Data {
+    let mut product: f64 = 0.0;
+    for arg in args {
+        let num: f64 = match arg {
+            Data::Whole { value } => {
+                value as f64
+            },
+            Data::Integer { value } => {
+                value as f64
+            },
+            Data::Float { value } => {
+                value
+            },
+            _ => {
+                panic!("{:#?} is not numeric", arg);
+            }
+        };
+        product *= num;
+    }
+    Data::Float { value: product }
 }
 
 impl fmt::Display for Data {
@@ -440,7 +462,7 @@ impl Interpreter {
             Data::Identifier { name } => {
                 let var = self.memory.get(&name.clone()).unwrap().clone();
                 let data: Data = match &var.value {
-                    Data::KraberFunction { param_types, body } => {
+                    Data::KraberFunction { body } => {
                         let args: Vec<Data> = expression.nodes[0].nodes.iter().map(
                             |x|
                             if matches!(&x.data, Data::Identifier { name }) {
@@ -470,14 +492,12 @@ impl Interpreter {
         }
     }
 
-    fn loop_while(&mut self, expression: Node, body: Node) {
-        let mut nodes: Vec<Node> = Vec::new();
-        nodes.push(body);
+    fn loop_while(&mut self, expression: Node, body: Vec<Node>) {
         let tree = Tree {
             root: Node {
                 id: 0,
                 data: Data::Main,
-                nodes,
+                nodes: body,
             },
         };
         let mut sub = Interpreter {
@@ -507,11 +527,13 @@ impl Interpreter {
     }
 
     fn interpret(&mut self) -> &mut HashMap<String, Variable> {
-        self.memory.insert("nand".to_string(), Variable { value: Data::KraberFunction { param_types: ["boolean".to_string(), "boolean".to_string()].to_vec(), body: nand }, data_type: Data::Type { name: "kraberfunction".to_string() } });
+        self.memory.insert("nand".to_string(), Variable { value: Data::KraberFunction { body: nand }, data_type: Data::Type { name: "kraberfunction".to_string() } });
+        self.memory.insert("add".to_string(), Variable { value: Data::KraberFunction { body: add }, data_type: Data::Type { name: "kraberfunction".to_string() } });
+        self.memory.insert("multiply".to_string(), Variable { value: Data::KraberFunction { body: multiply }, data_type: Data::Type { name: "kraberfunction".to_string() } });
         for node in self.tree.root.nodes.clone() {
             match &node.data {
                 Data::While => {
-                    self.loop_while(node.nodes[0].clone(), node.nodes[1].clone());
+                    self.loop_while(node.nodes[0].clone(), node.nodes[1..].to_vec().clone());
                 },
                 Data::Declare => {
                     match &node.nodes[0].data {
@@ -537,7 +559,7 @@ impl Interpreter {
                                         Data::Type { name: type_name } => {
                                             if type_name == "kraberfunction" {
                                                 match &var_data_value {
-                                                    Data::KraberFunction { param_types, body } => {
+                                                    Data::KraberFunction { body } => {
                                                         let args: Vec<Data> = node.nodes[1].nodes.iter().map(
                                                             |x|
                                                             if matches!(&x.data, Data::Identifier { name }) {
@@ -641,7 +663,7 @@ fn create_parser(tokens: Vec<Token>) -> Parser {
 }
 
 fn main() {
-    let code = "declare x as boolean\nset x to true\nwhile x\n{\n\tset x to nand(x x)\n}".to_string();
+    let code = fs::read_to_string("./tests/main.kraber").expect("file not found");
     println!("{}", code);
     let mut lexer = create_lexer(code);
     let tokens = lexer.get_tokens();
