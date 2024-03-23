@@ -1,1 +1,4 @@
-set f to fun (x as integer y as integer) {}
+set f to fun (x as integer y as integer)
+{
+  return x
+}

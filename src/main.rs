@@ -29,8 +29,8 @@ enum Data {
     Function {
         params: Vec<String>,
         param_types: Vec<Data>,
-        body: Box<Tree>,
     },
+    Return,
     Identifier { name: String },
     Type { name: String },
     Null,
@@ -378,11 +378,13 @@ impl Parser {
                         if self.token.category != Meta::REF {
                             panic!("expected REF");
                         }
-                        let node = ast.get_scope(scope.clone()).insert(&Data::Assign);
-                        node.insert(&Data::Identifier { name: self.token.value.clone() });
+                        let mut scoped_node = ast.get_scope(scope.clone());
+                        scope.push(scoped_node.nodes.len());
+                        let node = scoped_node.insert(&Data::Identifier { name: self.token.value.clone() });
                         self.step();
                         if self.token.value == "to" {
                             self.step();
+                            // different rules for functions
                             match self.token.category {
                                 Meta::FUN => {
                                     let mut params: Vec<String> = Vec::new();
@@ -411,22 +413,24 @@ impl Parser {
                                             }
                                             self.step();
                                         }
-                                        self.index -= 1;
-                                        self.token = self.tokens[self.index].clone();
-                                        let body = Box::new(
-                                            Tree {
-                                                root: Node {
-                                                    id: 0,
-                                                    data: Data::Main,
-                                                    nodes: Vec::new(),
-                                                }
+                                        scope.push(node.nodes.len());
+                                        let sub_node = node.insert(&Data::Function { params, param_types });
+                                        let mut counter: usize = 1;
+                                        self.step();
+                                        while !self.end && counter != 0 {
+                                            if self.token.value == "{" {
+                                                counter += 1;
+                                            } else if self.token.value == "}" {
+                                                counter -= 1;
+                                            } else {
+                                                self.build_tree(ast, scope);
                                             }
-                                        );
-                                        node.insert(&Data::Function { params, param_types, body });
+                                            self.step();
+                                        }
                                     }
                                 },
                                 _ => {
-                                    self.build_expression(node);
+                                    self.build_expression(scoped_node);
                                 }
                             }
                         }
@@ -460,7 +464,12 @@ impl Parser {
                             }
                             self.step();
                         }
-                    }
+                    },
+                    "return" => {
+                        let node = ast.get_scope(scope.clone()).insert(&Data::Return);
+                        self.step();
+                        self.build_expression(node);
+                    },
                     _ => {}
                 }
             },
@@ -469,7 +478,9 @@ impl Parser {
             },
             Meta::REF => {
                 let sub_node = ast.get_scope(scope.clone()).insert(&Data::Identifier { name: self.token.value.clone() });
-                self.build_expression(sub_node);
+                if sub_node.nodes.len() > 0 {
+                    self.build_expression(sub_node);
+                }
             },
             _ => {}
         }
@@ -676,7 +687,7 @@ fn create_lexer(code: String) -> Lexer {
         end: false,
         letters: "abcdefghijklmnopqrstuvwxyz_".to_string(),
         digits: "0123456789".to_string(),
-        keywords: vec!["declare".to_string(), "as".to_string(), "set".to_string(), "to".to_string(), "while".to_string()],
+        keywords: vec!["declare".to_string(), "as".to_string(), "set".to_string(), "to".to_string(), "while".to_string(), "return".to_string()],
     }
 }
 
