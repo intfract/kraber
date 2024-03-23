@@ -9,7 +9,8 @@ It packs a punch like the Kraber .50-Cal.
 ## Syntax
 
 - declaring a variable: `declare <identifier> as <type>`
-- setting a variable ``
+- setting a variable `set <identifier> to <expression>`
+- printing `<expression>`
 
 ## Examples
 
