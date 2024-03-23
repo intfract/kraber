@@ -31,8 +31,6 @@ enum Data {
         param_types: Vec<Data>,
         body: Box<Tree>,
     },
-    Arguments { value: Vec<Data> },
-    Call { callee: String },
     Identifier { name: String },
     Type { name: String },
     Null,
@@ -385,7 +383,52 @@ impl Parser {
                         self.step();
                         if self.token.value == "to" {
                             self.step();
-                            self.build_expression(node);
+                            match self.token.category {
+                                Meta::FUN => {
+                                    let mut params: Vec<String> = Vec::new();
+                                    let mut param_types: Vec<Data> = Vec::new();
+                                    if self.index < self.tokens.len() - 1 && self.tokens[self.index + 1].value == "(" {
+                                        self.step();
+                                        let mut counter: usize = 1;
+                                        self.step();
+                                        while !self.end && counter != 0 {
+                                            if self.token.value == "(" {
+                                                counter += 1;
+                                            } else if self.token.value == ")" {
+                                                counter -= 1;
+                                            } else if self.token.category == Meta::REF {
+                                                params.push(self.token.value.clone());
+                                                self.step();
+                                                if self.token.value == "as" {
+                                                    self.step();
+                                                    if self.token.category != Meta::TYP {
+                                                        panic!("expected TYP");
+                                                    }
+                                                    param_types.push(Data::Type { name: self.token.value.clone() });
+                                                }
+                                            } else {
+                                                // other feature
+                                            }
+                                            self.step();
+                                        }
+                                        self.index -= 1;
+                                        self.token = self.tokens[self.index].clone();
+                                        let body = Box::new(
+                                            Tree {
+                                                root: Node {
+                                                    id: 0,
+                                                    data: Data::Main,
+                                                    nodes: Vec::new(),
+                                                }
+                                            }
+                                        );
+                                        node.insert(&Data::Function { params, param_types, body });
+                                    }
+                                },
+                                _ => {
+                                    self.build_expression(node);
+                                }
+                            }
                         }
                     },
                     "while" => {
@@ -656,16 +699,16 @@ fn main() {
     println!("{}", code);
     let mut lexer = create_lexer(code);
     let tokens = lexer.get_tokens();
-    /* for token in &tokens {
+    for token in &tokens {
         println!("{token}");
-    } */
+    }
     let mut parser = create_parser(tokens);
     let ast = parser.parse();
     println!("{ast:#?}");
-    let mut interpreter = Interpreter {
+    /* let mut interpreter = Interpreter {
         tree: ast,
         memory: HashMap::new(),
     };
     let memory = interpreter.interpret();
-    println!("{memory:#?}");
+    println!("{memory:#?}"); */
 }

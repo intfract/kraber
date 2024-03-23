@@ -1,5 +1,1 @@
-declare x as float
-set x to add(1 2)
-set x to multiply(x 2)
-set x to raise(x 2)
-x
+set f to fun (x as integer y as integer) {}
