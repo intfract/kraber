@@ -29,10 +29,12 @@ enum Data {
     FunctionContainer {
         params: Vec<String>,
         param_types: Vec<Data>,
+        return_types: Vec<Data>,
     },
     Function {
         params: Vec<String>,
         param_types: Vec<Data>,
+        return_types: Vec<Data>,
         body: Vec<Node>,
     },
     Return,
@@ -368,6 +370,7 @@ impl Parser {
                         if self.token.category != Meta::REF {
                             panic!("expected REF");
                         }
+                        println!("{scope:#?}");
                         let node = ast.get_scope(scope.clone()).insert(&Data::Declare);
                         node.insert(&Data::Identifier { name: self.token.value.clone() });
                         self.step();
@@ -420,8 +423,18 @@ impl Parser {
                                             }
                                             self.step();
                                         }
+                                        let return_type = if self.token.value == "as" {
+                                            self.step();
+                                            if self.token.category != Meta::TYP {
+                                                panic!("expected TYP");
+                                            }
+                                            Data::Type { name: self.token.value.clone() }
+                                        } else {
+                                            panic!("expected function return type");
+                                        };
+                                        self.step();
                                         scope.push(node.nodes.len());
-                                        node.insert(&Data::FunctionContainer { params, param_types });
+                                        node.insert(&Data::FunctionContainer { params, param_types, return_types: [return_type].to_vec() });
                                         let mut counter: usize = 1;
                                         self.step();
                                         while !self.end && counter != 0 {
@@ -430,12 +443,14 @@ impl Parser {
                                             } else if self.token.value == "}" {
                                                 counter -= 1;
                                             } else {
+                                                println!("{scope:#?}");
                                                 self.build_tree(ast, scope);
                                             }
                                             self.step();
                                         }
                                         self.index -= 1;
                                         self.token = self.tokens[self.index].clone();
+                                        scope.pop(); // descope
                                         scope.pop(); // descope
                                         scope.pop(); // descope
                                     }
@@ -572,7 +587,7 @@ impl Interpreter {
                         ).collect();
                         body(args)
                     },
-                    Data::Function { body, params, param_types } => {
+                    Data::Function { body, params, param_types, return_types } => {
                         let args: Vec<Data> = expression.nodes[0].nodes.iter().map(
                             |x|
                             if matches!(&x.data, Data::Identifier { name }) {
@@ -588,6 +603,28 @@ impl Interpreter {
                                 x.data.clone()
                             }
                         ).collect();
+                        let mut tree = Tree {
+                            root: Node {
+                                id: 0,
+                                data: Data::Main,
+                                nodes: body.to_vec(),
+                            }
+                        };
+                        for i in 0..params.len() {
+                            let param = &params[i];
+                            let param_type = &param_types[i];
+                            // declare each param with value of arg
+                        }
+                        let mut memory = self.memory.clone();
+                        memory.insert("return".to_string(), Variable {
+                            value: Data::Null,
+                            data_type: return_types[0].clone(),
+                        });
+                        let mut sub = Interpreter {
+                            tree,
+                            memory,
+                        };
+                        sub.interpret();
                         Data::Null // TODO: interpret function body instead
                     },
                     _ => {
@@ -596,8 +633,8 @@ impl Interpreter {
                 };
                 data
             },
-            Data::FunctionContainer { params, param_types } => {
-                Data::Function { params: params.to_vec(), param_types: param_types.to_vec(), body: expression.nodes[0].nodes.clone() }
+            Data::FunctionContainer { params, param_types, return_types } => {
+                Data::Function { params: params.to_vec(), param_types: param_types.to_vec(), body: expression.nodes[0].nodes.clone(), return_types: return_types.to_vec() }
             },
             _ => {
                 expression.nodes[0].data.clone()
@@ -648,6 +685,19 @@ impl Interpreter {
             match &node.data {
                 Data::While => {
                     self.loop_while(node.nodes[0].clone(), node.nodes[1..].to_vec().clone());
+                },
+                Data::Return => {
+                    println!("returning:\n{:#?}", node.nodes);
+                    let expression = Node {
+                        id: 0,
+                        data: Data::Expression,
+                        nodes: node.nodes.clone(),
+                    };
+                    let value = self.eval_expression(expression);
+                    self.memory.insert("return".to_string(), Variable {
+                        value,
+                        data_type: self.memory.get("return").unwrap().data_type.clone(),
+                    });
                 },
                 Data::Declare => {
                     match &node.nodes[0].data {

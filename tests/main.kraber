@@ -1,5 +1,5 @@
 declare f as function
-set f to fun (x as integer y as integer)
+set f to fun (x as integer y as integer) as integer
 {
   return x
 }
