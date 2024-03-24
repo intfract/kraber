@@ -610,12 +610,15 @@ impl Interpreter {
                                 nodes: body.to_vec(),
                             }
                         };
+                        let mut memory = self.memory.clone();
                         for i in 0..params.len() {
                             let param = &params[i];
                             let param_type = &param_types[i];
-                            // declare each param with value of arg
+                            memory.insert(param.to_string(), Variable {
+                                value: args[i].clone(),
+                                data_type: param_type.clone(),
+                            });
                         }
-                        let mut memory = self.memory.clone();
                         memory.insert("return".to_string(), Variable {
                             value: Data::Null,
                             data_type: return_types[0].clone(),
@@ -625,7 +628,7 @@ impl Interpreter {
                             memory,
                         };
                         sub.interpret();
-                        Data::Null // TODO: interpret function body instead
+                        sub.memory.get("return").unwrap().value.clone()
                     },
                     _ => {
                         var.value.clone()

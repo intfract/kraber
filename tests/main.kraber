@@ -1,7 +1,7 @@
-declare f as function
-set f to fun (x as integer y as integer) as integer
+declare and as function
+set and to fun (a as boolean b as integer) as boolean
 {
-  return x
+  return nand(nand(a b) nand(a b))
 }
-declare a as integer
-set a to f(1 1)
+declare x as boolean
+set x to and(true true)

@@ -46,7 +46,7 @@ set x to raise(x 2)
 x
 ```
 
-### Loop
+### Loops
 
 > [!TIP]
 > While loops can be used to implement `if` statements!
@@ -58,4 +58,16 @@ while x
 {
   set x to nand(true true)
 }
+```
+
+### Functions
+
+```
+declare and as function
+set and to fun (a as boolean b as integer) as boolean
+{
+  return nand(nand(a b) nand(a b))
+}
+declare x as boolean
+set x to and(true true)
 ```
