@@ -26,9 +26,14 @@ enum Data {
     KraberFunction {
         body: fn(Vec<Data>) -> Data,
     },
+    FunctionContainer {
+        params: Vec<String>,
+        param_types: Vec<Data>,
+    },
     Function {
         params: Vec<String>,
         param_types: Vec<Data>,
+        body: Vec<Node>,
     },
     Return,
     Identifier { name: String },
@@ -208,6 +213,7 @@ impl Lexer {
             "float".to_string(),
             "boolean".to_string(),
             "text".to_string(),
+            "function".to_string(),
         ];
         while !self.end {
             if self.letters.contains(self.character) {
@@ -378,9 +384,10 @@ impl Parser {
                         if self.token.category != Meta::REF {
                             panic!("expected REF");
                         }
-                        let mut scoped_node = ast.get_scope(scope.clone());
+                        let scoped_node = ast.get_scope(scope.clone());
                         scope.push(scoped_node.nodes.len());
-                        let node = scoped_node.insert(&Data::Identifier { name: self.token.value.clone() });
+                        let node = scoped_node.insert(&Data::Assign);
+                        node.insert(&Data::Identifier { name: self.token.value.clone() });
                         self.step();
                         if self.token.value == "to" {
                             self.step();
@@ -414,7 +421,7 @@ impl Parser {
                                             self.step();
                                         }
                                         scope.push(node.nodes.len());
-                                        let sub_node = node.insert(&Data::Function { params, param_types });
+                                        node.insert(&Data::FunctionContainer { params, param_types });
                                         let mut counter: usize = 1;
                                         self.step();
                                         while !self.end && counter != 0 {
@@ -427,10 +434,14 @@ impl Parser {
                                             }
                                             self.step();
                                         }
+                                        self.index -= 1;
+                                        self.token = self.tokens[self.index].clone();
+                                        scope.pop(); // descope
+                                        scope.pop(); // descope
                                     }
                                 },
                                 _ => {
-                                    self.build_expression(scoped_node);
+                                    self.build_expression(node);
                                 }
                             }
                         }
@@ -464,6 +475,7 @@ impl Parser {
                             }
                             self.step();
                         }
+                        scope.pop(); // descope
                     },
                     "return" => {
                         let node = ast.get_scope(scope.clone()).insert(&Data::Return);
@@ -560,11 +572,32 @@ impl Interpreter {
                         ).collect();
                         body(args)
                     },
+                    Data::Function { body, params, param_types } => {
+                        let args: Vec<Data> = expression.nodes[0].nodes.iter().map(
+                            |x|
+                            if matches!(&x.data, Data::Identifier { name }) {
+                                let mut nodes: Vec<Node> = Vec::new();
+                                nodes.push(x.clone());
+                                let expression = Node {
+                                    id: 0,
+                                    data: Data::Expression,
+                                    nodes,
+                                };
+                                self.eval_expression(expression)
+                            } else {
+                                x.data.clone()
+                            }
+                        ).collect();
+                        Data::Null // TODO: interpret function body instead
+                    },
                     _ => {
                         var.value.clone()
                     }
                 };
                 data
+            },
+            Data::FunctionContainer { params, param_types } => {
+                Data::Function { params: params.to_vec(), param_types: param_types.to_vec(), body: expression.nodes[0].nodes.clone() }
             },
             _ => {
                 expression.nodes[0].data.clone()
@@ -716,10 +749,10 @@ fn main() {
     let mut parser = create_parser(tokens);
     let ast = parser.parse();
     println!("{ast:#?}");
-    /* let mut interpreter = Interpreter {
+    let mut interpreter = Interpreter {
         tree: ast,
         memory: HashMap::new(),
     };
     let memory = interpreter.interpret();
-    println!("{memory:#?}"); */
+    println!("{memory:#?}");
 }
