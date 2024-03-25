@@ -379,7 +379,6 @@ impl Parser {
                         if self.token.category != Meta::REF {
                             panic!("expected REF");
                         }
-                        // println!("{scope:#?}");
                         let node = ast.get_scope(scope.clone()).insert(&Data::Declare);
                         node.insert(&Data::Identifier { name: self.token.value.clone() });
                         self.step();
@@ -397,7 +396,6 @@ impl Parser {
                             panic!("expected REF");
                         }
                         let scoped_node = ast.get_scope(scope.clone());
-                        println!("{scope:#?} = {scoped_node:#?}");
                         scope.push(scoped_node.nodes.len());
                         let node = scoped_node.insert(&Data::Assign);
                         node.insert(&Data::Identifier { name: self.token.value.clone() });
@@ -453,7 +451,6 @@ impl Parser {
                                             } else if self.token.value == "}" {
                                                 counter -= 1;
                                             } else {
-                                                println!("function scope = {scope:#?}");
                                                 self.build_tree(ast, scope);
                                             }
                                             self.step();
@@ -496,9 +493,6 @@ impl Parser {
                             } else if self.token.value == "}" {
                                 counter -= 1;
                             } else {
-                                let n = ast.get_scope(scope.clone());
-                                println!("loop scope = {scope:#?}");
-                                println!("fucking ast = {ast:#?}");
                                 self.build_tree(ast, scope);
                             }
                             self.step();
@@ -706,7 +700,6 @@ impl Interpreter {
                     self.loop_while(node.nodes[0].clone(), node.nodes[1..].to_vec().clone());
                 },
                 Data::Return => {
-                    println!("returning:\n{:#?}", node.nodes);
                     let expression = Node {
                         id: 0,
                         data: Data::Expression,
