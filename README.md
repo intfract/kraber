@@ -73,7 +73,7 @@ set factorial to fun (n as whole) as whole
   set result to 1
   declare counter as whole
   set counter to 2
-  while nand(equal(n counter), equal(n counter)) {
+  while nand(equal(n counter) equal(n counter)) {
     set result to multiply(result counter)
     set counter to add(counter 1)
   }
