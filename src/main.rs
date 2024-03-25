@@ -680,7 +680,6 @@ impl Interpreter {
                 panic!("expected boolean");
             }
         };
-        let mut safety_lock = 4;
         while condition {
             sub.interpret();
             condition = match sub.eval_expression(expression.clone()) {
@@ -691,11 +690,6 @@ impl Interpreter {
                     panic!("expected boolean");
                 }
             };
-            println!("{:#?}", sub.memory.get("counter").unwrap());
-            safety_lock -= 1;
-            if safety_lock == 0 {
-                panic!("loop limit exceeded");
-            }
         }
         self.memory = sub.memory.clone();
     }
