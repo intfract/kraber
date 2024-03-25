@@ -76,6 +76,10 @@ fn expect_numeric(arg: Data) -> f64 {
     }
 }
 
+fn equal(args: Vec<Data>) -> Data {
+    Data::Boolean { value: args.windows(2).all(|x| x[0] == x[1]) }
+}
+
 fn nand(args: Vec<Data>) -> Data {
     if args.len() != 2 {
         panic!("received invalid number of parameters ({}) for binary function", args.len());
@@ -327,7 +331,7 @@ impl Node {
         let mut node = self;
         if scope.len() > 0 {
             node = &mut node.nodes[scope[0]];
-            scope.pop();
+            scope.remove(0);
             return node.get_scope(scope);
         }
         node
@@ -370,7 +374,7 @@ impl Parser {
                         if self.token.category != Meta::REF {
                             panic!("expected REF");
                         }
-                        println!("{scope:#?}");
+                        // println!("{scope:#?}");
                         let node = ast.get_scope(scope.clone()).insert(&Data::Declare);
                         node.insert(&Data::Identifier { name: self.token.value.clone() });
                         self.step();
@@ -388,6 +392,7 @@ impl Parser {
                             panic!("expected REF");
                         }
                         let scoped_node = ast.get_scope(scope.clone());
+                        println!("{scope:#?} = {scoped_node:#?}");
                         scope.push(scoped_node.nodes.len());
                         let node = scoped_node.insert(&Data::Assign);
                         node.insert(&Data::Identifier { name: self.token.value.clone() });
@@ -443,7 +448,7 @@ impl Parser {
                                             } else if self.token.value == "}" {
                                                 counter -= 1;
                                             } else {
-                                                println!("{scope:#?}");
+                                                println!("function scope = {scope:#?}");
                                                 self.build_tree(ast, scope);
                                             }
                                             self.step();
@@ -452,10 +457,10 @@ impl Parser {
                                         self.token = self.tokens[self.index].clone();
                                         scope.pop(); // descope
                                         scope.pop(); // descope
-                                        scope.pop(); // descope
                                     }
                                 },
                                 _ => {
+                                    scope.pop(); // descope
                                     self.build_expression(node);
                                 }
                             }
@@ -486,10 +491,15 @@ impl Parser {
                             } else if self.token.value == "}" {
                                 counter -= 1;
                             } else {
+                                let n = ast.get_scope(scope.clone());
+                                println!("loop scope = {scope:#?}");
+                                println!("fucking ast = {ast:#?}");
                                 self.build_tree(ast, scope);
                             }
                             self.step();
                         }
+                        self.index -= 1;
+                        self.token = self.tokens[self.index].clone();
                         scope.pop(); // descope
                     },
                     "return" => {
@@ -665,6 +675,7 @@ impl Interpreter {
                 panic!("expected boolean");
             }
         };
+        let mut safety_lock = 69;
         while condition {
             sub.interpret();
             condition = match sub.eval_expression(expression.clone()) {
@@ -675,11 +686,16 @@ impl Interpreter {
                     panic!("expected boolean");
                 }
             };
+            safety_lock -= 1;
+            if safety_lock == 0 {
+                panic!("loop limit exceeded");
+            }
         }
         self.memory = sub.memory.clone();
     }
 
     fn interpret(&mut self) -> &mut HashMap<String, Variable> {
+        self.memory.insert("equal".to_string(), Variable { value: Data::KraberFunction { body: equal }, data_type: Data::Type { name: "kraberfunction".to_string() } });
         self.memory.insert("nand".to_string(), Variable { value: Data::KraberFunction { body: nand }, data_type: Data::Type { name: "kraberfunction".to_string() } });
         self.memory.insert("add".to_string(), Variable { value: Data::KraberFunction { body: add }, data_type: Data::Type { name: "kraberfunction".to_string() } });
         self.memory.insert("multiply".to_string(), Variable { value: Data::KraberFunction { body: multiply }, data_type: Data::Type { name: "kraberfunction".to_string() } });
@@ -796,9 +812,9 @@ fn main() {
     println!("{}", code);
     let mut lexer = create_lexer(code);
     let tokens = lexer.get_tokens();
-    for token in &tokens {
+    /* for token in &tokens {
         println!("{token}");
-    }
+    } */
     let mut parser = create_parser(tokens);
     let ast = parser.parse();
     println!("{ast:#?}");
@@ -807,5 +823,5 @@ fn main() {
         memory: HashMap::new(),
     };
     let memory = interpreter.interpret();
-    println!("{memory:#?}");
+    // println!("{memory:#?}");
 }

@@ -1,7 +1,11 @@
-declare and as function
-set and to fun (a as boolean b as integer) as boolean
-{
-  return nand(nand(a b) nand(a b))
-}
 declare x as boolean
-set x to and(true true)
+set x to true
+while x
+{
+  declare a as whole
+  declare b as whole
+  set a to 1
+  set b to 1
+  equal(a b)
+  set x to nand(x x)
+}
