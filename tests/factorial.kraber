@@ -9,6 +9,7 @@ set factorial to fun (n as whole) as whole
     set result to multiply(result counter)
     set counter to add(counter 1)
   }
+  set result to multiply(result counter)
   return result
 }
 declare x as whole

@@ -62,12 +62,24 @@ while x
 
 ### Functions
 
+> [!WARNING]
+> Variables declared in functions do not go out of scope!
+
 ```
-declare and as function
-set and to fun (a as boolean b as integer) as boolean
+declare factorial as function
+set factorial to fun (n as whole) as whole
 {
-  return nand(nand(a b) nand(a b))
+  declare result as whole
+  set result to 1
+  declare counter as whole
+  set counter to 2
+  while nand(equal(n counter), equal(n counter)) {
+    set result to multiply(result counter)
+    set counter to add(counter 1)
+  }
+  set result to multiply(result counter)
+  return result
 }
-declare x as boolean
-set x to and(true true)
+declare x as whole
+set x to factorial(4)
 ```

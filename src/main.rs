@@ -77,7 +77,12 @@ fn expect_numeric(arg: Data) -> f64 {
 }
 
 fn equal(args: Vec<Data>) -> Data {
-    Data::Boolean { value: args.windows(2).all(|x| x[0] == x[1]) }
+    Data::Boolean {
+        value: args.windows(2).all(
+            |x|
+            expect_numeric(x[0].clone()) == expect_numeric(x[1].clone())
+        )
+    }
 }
 
 fn nand(args: Vec<Data>) -> Data {
@@ -675,7 +680,7 @@ impl Interpreter {
                 panic!("expected boolean");
             }
         };
-        let mut safety_lock = 69;
+        let mut safety_lock = 4;
         while condition {
             sub.interpret();
             condition = match sub.eval_expression(expression.clone()) {
@@ -686,6 +691,7 @@ impl Interpreter {
                     panic!("expected boolean");
                 }
             };
+            println!("{:#?}", sub.memory.get("counter").unwrap());
             safety_lock -= 1;
             if safety_lock == 0 {
                 panic!("loop limit exceeded");
@@ -759,7 +765,7 @@ impl Interpreter {
                         Data::Whole { value } => println!("{value}"),
                         Data::Integer { value } => println!("{value}"),
                         Data::Float { value } => println!("{value}"),
-                        Data::Boolean { value } => println!("shit {value}"),
+                        Data::Boolean { value } => println!("{value}"),
                         Data::Text { value } => println!("{value}"),
                         Data::KraberFunction { body } => {
                             let mut expression = Node {
@@ -823,5 +829,5 @@ fn main() {
         memory: HashMap::new(),
     };
     let memory = interpreter.interpret();
-    // println!("{memory:#?}");
+    println!("{memory:#?}");
 }
