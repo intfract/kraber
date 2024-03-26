@@ -612,7 +612,7 @@ impl Interpreter {
                                 x.data.clone()
                             }
                         ).collect();
-                        let mut tree = Tree {
+                        let tree = Tree {
                             root: Node {
                                 id: 0,
                                 data: Data::Main,
@@ -632,6 +632,7 @@ impl Interpreter {
                             value: Data::Null,
                             data_type: return_types[0].clone(),
                         });
+                        // println!("{memory:#?}");
                         let mut sub = Interpreter {
                             tree,
                             memory,
@@ -654,7 +655,7 @@ impl Interpreter {
         }
     }
 
-    fn loop_while(&mut self, expression: Node, body: Vec<Node>) {
+    fn loop_while(&mut self, expression: Node, body: Vec<Node>) -> bool {
         let tree = Tree {
             root: Node {
                 id: 0,
@@ -684,8 +685,18 @@ impl Interpreter {
                     panic!("expected boolean");
                 }
             };
+            match sub.memory.get("return") {
+                Some(variable) => {
+                    if variable.value != Data::Null {
+                        self.memory = sub.memory.clone();
+                        return true;
+                    }
+                },
+                None => {},
+            }
         }
         self.memory = sub.memory.clone();
+        false
     }
 
     fn interpret(&mut self) -> &mut HashMap<String, Variable> {
@@ -697,7 +708,9 @@ impl Interpreter {
         for node in self.tree.root.nodes.clone() {
             match &node.data {
                 Data::While => {
-                    self.loop_while(node.nodes[0].clone(), node.nodes[1..].to_vec().clone());
+                    if self.loop_while(node.nodes[0].clone(), node.nodes[1..].to_vec().clone()) {
+                        return &mut self.memory;
+                    }
                 },
                 Data::Return => {
                     let expression = Node {
@@ -710,6 +723,7 @@ impl Interpreter {
                         value,
                         data_type: self.memory.get("return").unwrap().data_type.clone(),
                     });
+                    return &mut self.memory;
                 },
                 Data::Declare => {
                     match &node.nodes[0].data {
@@ -732,7 +746,75 @@ impl Interpreter {
                                 nodes: Vec::new(),
                             };
                             expression.nodes.push(node.nodes[1].clone());
-                            let value = self.eval_expression(expression);
+                            let mut value = self.eval_expression(expression);
+                            let value_string = value.to_string();
+                            let collection: Vec<&str> = value_string.split(' ').collect();
+                            let type_name = collection[0].to_string().to_lowercase();
+                            match &data_type {
+                                Data::Type { name } => {
+                                    if name.to_owned() != type_name {
+                                        match value {
+                                            Data::Float { value: float }  => {
+                                                match name.as_str() {
+                                                    "whole" => {
+                                                        if float < 0.0 {
+                                                            panic!("could not cast negative float to whole");
+                                                        }
+                                                        value = Data::Whole {
+                                                            value: float as usize,
+                                                        };
+                                                    },
+                                                    "integer" => {
+                                                        value = Data::Integer {
+                                                            value: float as isize,
+                                                        };
+                                                    },
+                                                    _ => {}
+                                                }
+                                            },
+                                            Data::Integer { value: integer }  => {
+                                                match name.as_str() {
+                                                    "whole" => {
+                                                        if integer < 0 {
+                                                            panic!("could not cast negative integer to whole");
+                                                        }
+                                                        value = Data::Whole {
+                                                            value: integer as usize,
+                                                        };
+                                                    },
+                                                    "float" => {
+                                                        value = Data::Float {
+                                                            value: integer as f64,
+                                                        };
+                                                    },
+                                                    _ => {}
+                                                }
+                                            },
+                                            Data::Whole { value: whole }  => {
+                                                match name.as_str() {
+                                                    "integer" => {
+                                                        value = Data::Integer {
+                                                            value: whole as isize,
+                                                        };
+                                                    },
+                                                    "float" => {
+                                                        value = Data::Float {
+                                                            value: whole as f64,
+                                                        };
+                                                    },
+                                                    _ => {}
+                                                }
+                                            },
+                                            _ => {
+                                                panic!("could not cast {type_name:#?} to {name:#?}");
+                                            }
+                                        }
+                                    }
+                                },
+                                _ => {
+                                    panic!("expected data type to be Data::Type");
+                                }
+                            }
                             self.memory.insert(name.clone(), Variable {
                                 value,
                                 data_type,

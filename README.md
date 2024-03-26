@@ -62,9 +62,6 @@ while x
 
 ### Functions
 
-> [!WARNING]
-> Variables declared in functions do not go out of scope!
-
 ```
 declare factorial as function
 set factorial to fun (n as whole) as whole

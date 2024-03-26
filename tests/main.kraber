@@ -4,8 +4,7 @@ while x
 {
   declare a as whole
   declare b as whole
-  set a to 1
-  set b to 1
-  equal(a b)
+  set a to +1
+  set b to 1.5
   set x to nand(x x)
 }

@@ -1,16 +1,12 @@
 declare factorial as function
 set factorial to fun (n as whole) as whole
 {
-  declare result as whole
-  set result to 1
-  declare counter as whole
-  set counter to 2
-  while nand(equal(n counter), equal(n counter)) {
-    set result to multiply(result counter)
-    set counter to add(counter 1)
+  declare y as boolean
+  set y to equal(n 0)
+  while y {
+    return 1
   }
-  set result to multiply(result counter)
-  return result
+  return multiply(n factorial(add(n -1)))
 }
 declare x as whole
 set x to factorial(4)
