@@ -26,7 +26,7 @@ x
 
 ### Boolean Operations
 
-Boolean operations are handled by **kraber functions** written in rust.
+Boolean operations are handled by **Kraber Functions** written in rust.
 
 > [!TIP]
 > All logic gates can be made using the `nand` gate!
@@ -76,6 +76,24 @@ set factorial to fun (n as whole) as whole
   }
   set result to multiply(result counter)
   return result
+}
+declare x as whole
+set x to factorial(4)
+```
+
+> [!NOTE]
+> Recursion is supported in Kraber!
+
+```
+declare factorial as function
+set factorial to fun (n as whole) as whole
+{
+  declare y as boolean
+  set y to equal(n 0)
+  while y {
+    return 1
+  }
+  return multiply(n factorial(add(n -1)))
 }
 declare x as whole
 set x to factorial(4)
