@@ -82,7 +82,7 @@ set x to factorial(4)
 ```
 
 > [!NOTE]
-> Recursion is supported in Kraber!
+> Kraber supports recursion!
 
 ```
 declare factorial as function
