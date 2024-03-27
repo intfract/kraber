@@ -85,6 +85,12 @@ fn equal(args: Vec<Data>) -> Data {
     }
 }
 
+fn lt(args: Vec<Data>) -> Data {
+    Data::Boolean {
+        value: expect_numeric(args[0].clone()) < expect_numeric(args[1].clone())
+    }
+}
+
 fn nand(args: Vec<Data>) -> Data {
     if args.len() != 2 {
         panic!("received invalid number of parameters ({}) for binary function", args.len());
@@ -787,7 +793,9 @@ impl Interpreter {
                                                             value: integer as f64,
                                                         };
                                                     },
-                                                    _ => {}
+                                                    _ => {
+                                                        panic!("could not cast {type_name:#?} to {name:#?}");
+                                                    }
                                                 }
                                             },
                                             Data::Whole { value: whole }  => {
@@ -802,7 +810,9 @@ impl Interpreter {
                                                             value: whole as f64,
                                                         };
                                                     },
-                                                    _ => {}
+                                                    _ => {
+                                                        panic!("could not cast {type_name:#?} to {name:#?}");
+                                                    }
                                                 }
                                             },
                                             _ => {
