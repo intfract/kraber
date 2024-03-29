@@ -86,6 +86,9 @@ fn equal(args: Vec<Data>) -> Data {
 }
 
 fn lt(args: Vec<Data>) -> Data {
+    if args.len() != 2 {
+        panic!("received invalid number of parameters ({}) for binary function", args.len());
+    }
     Data::Boolean {
         value: expect_numeric(args[0].clone()) < expect_numeric(args[1].clone())
     }
@@ -579,6 +582,15 @@ struct Interpreter {
 }
 
 impl Interpreter {
+    fn init_memory(&mut self) {
+        self.memory.insert("equal".to_string(), Variable { value: Data::KraberFunction { body: equal }, data_type: Data::Type { name: "kraberfunction".to_string() } });
+        self.memory.insert("lt".to_string(), Variable { value: Data::KraberFunction { body: lt }, data_type: Data::Type { name: "kraberfunction".to_string() } });
+        self.memory.insert("nand".to_string(), Variable { value: Data::KraberFunction { body: nand }, data_type: Data::Type { name: "kraberfunction".to_string() } });
+        self.memory.insert("add".to_string(), Variable { value: Data::KraberFunction { body: add }, data_type: Data::Type { name: "kraberfunction".to_string() } });
+        self.memory.insert("multiply".to_string(), Variable { value: Data::KraberFunction { body: multiply }, data_type: Data::Type { name: "kraberfunction".to_string() } });
+        self.memory.insert("raise".to_string(), Variable { value: Data::KraberFunction { body: raise }, data_type: Data::Type { name: "kraberfunction".to_string() } });
+    }
+
     fn eval_expression(&mut self, expression: Node) -> Data {
         return match &expression.nodes[0].data {
             Data::Identifier { name } => {
@@ -706,11 +718,6 @@ impl Interpreter {
     }
 
     fn interpret(&mut self) -> &mut HashMap<String, Variable> {
-        self.memory.insert("equal".to_string(), Variable { value: Data::KraberFunction { body: equal }, data_type: Data::Type { name: "kraberfunction".to_string() } });
-        self.memory.insert("nand".to_string(), Variable { value: Data::KraberFunction { body: nand }, data_type: Data::Type { name: "kraberfunction".to_string() } });
-        self.memory.insert("add".to_string(), Variable { value: Data::KraberFunction { body: add }, data_type: Data::Type { name: "kraberfunction".to_string() } });
-        self.memory.insert("multiply".to_string(), Variable { value: Data::KraberFunction { body: multiply }, data_type: Data::Type { name: "kraberfunction".to_string() } });
-        self.memory.insert("raise".to_string(), Variable { value: Data::KraberFunction { body: raise }, data_type: Data::Type { name: "kraberfunction".to_string() } });
         for node in self.tree.root.nodes.clone() {
             match &node.data {
                 Data::While => {
@@ -907,6 +914,7 @@ fn main() {
         tree: ast,
         memory: HashMap::new(),
     };
+    interpreter.init_memory();
     let memory = interpreter.interpret();
     println!("{memory:#?}");
 }

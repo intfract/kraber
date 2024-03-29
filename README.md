@@ -4,7 +4,7 @@ A fast, powerful, and safe programming language written in rust!
 
 ## About
 
-It packs a punch like the Kraber .50-Cal.
+It packs a punch like the Kraber .50-Cal. Kraber is designed to be minimal, flexible, and readable. Everything follows a clear and consistent pattern.
 
 ## Syntax
 
@@ -51,6 +51,9 @@ x
 > [!TIP]
 > While loops can be used to implement `if` statements!
 
+> [!NOTE]
+> While loops are **not isolated** from the global scope.
+
 ```
 declare x as boolean
 set x to true
@@ -82,7 +85,7 @@ set x to factorial(4)
 ```
 
 > [!NOTE]
-> Kraber supports recursion!
+> Functions can be **recursive** but they are **isolated** from the global scope.
 
 ```
 declare factorial as function
