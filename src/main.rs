@@ -76,6 +76,17 @@ fn expect_numeric(arg: Data) -> f64 {
     }
 }
 
+fn expect_text(arg: Data) -> String {
+    return match arg {
+        Data::Text { value } => {
+            value
+        },
+        _ => {
+            panic!("expected Data::Text but got {:#?}", arg);
+        }
+    }
+}
+
 fn equal(args: Vec<Data>) -> Data {
     Data::Boolean {
         value: args.windows(2).all(
@@ -87,7 +98,7 @@ fn equal(args: Vec<Data>) -> Data {
 
 fn lt(args: Vec<Data>) -> Data {
     if args.len() != 2 {
-        panic!("received invalid number of parameters ({}) for binary function", args.len());
+        panic!("expected 2 arguments but received {}", args.len());
     }
     Data::Boolean {
         value: expect_numeric(args[0].clone()) < expect_numeric(args[1].clone())
@@ -96,7 +107,7 @@ fn lt(args: Vec<Data>) -> Data {
 
 fn nand(args: Vec<Data>) -> Data {
     if args.len() != 2 {
-        panic!("received invalid number of parameters ({}) for binary function", args.len());
+        panic!("expected 2 arguments but received {}", args.len());
     }
     Data::Boolean {
         value: !(
@@ -110,54 +121,54 @@ fn nand(args: Vec<Data>) -> Data {
 fn add(args: Vec<Data>) -> Data {
     let mut sum: f64 = 0.0;
     for arg in args {
-        let num: f64 = match arg {
-            Data::Whole { value } => {
-                value as f64
-            },
-            Data::Integer { value } => {
-                value as f64
-            },
-            Data::Float { value } => {
-                value
-            },
-            _ => {
-                panic!("{:#?} is not numeric", arg);
-            }
-        };
+        let num: f64 = expect_numeric(arg);
         sum += num;
     }
     Data::Float { value: sum }
 }
 
 fn multiply(args: Vec<Data>) -> Data {
+    let mut text_string = "".to_string();
     let mut product: f64 = 1.0;
     for arg in args {
-        let num: f64 = match arg {
-            Data::Whole { value } => {
-                value as f64
-            },
-            Data::Integer { value } => {
-                value as f64
-            },
-            Data::Float { value } => {
-                value
-            },
-            _ => {
-                panic!("{:#?} is not numeric", arg);
+        if text_string.is_empty() {
+            match &arg {
+                Data::Text { value } => {
+                    text_string = value.to_string();
+                    continue;
+                },
+                _ => {}
             }
-        };
+        }
+        let num: f64 = expect_numeric(arg);
         product *= num;
     }
-    Data::Float { value: product }
+    if text_string.is_empty() {
+        Data::Float { value: product }
+    } else {
+        Data::Text { value: text_string.repeat(product as usize) }
+    }
 }
 
 fn raise(args: Vec<Data>) -> Data {
+    if args.len() != 2 {
+        panic!("expected 2 arguments but received {}", args.len());
+    }
     Data::Float {
         value: f64::powf(
             expect_numeric(args[0].clone()),
             expect_numeric(args[1].clone())
         )
     }
+}
+
+fn join(args: Vec<Data>) -> Data {
+    let mut text_string = "".to_string();
+    for arg in args {
+        let string = expect_text(arg);
+        text_string += &string;
+    }
+    Data::Text { value: text_string }
 }
 
 impl fmt::Display for Data {
@@ -589,6 +600,7 @@ impl Interpreter {
         self.memory.insert("add".to_string(), Variable { value: Data::KraberFunction { body: add }, data_type: Data::Type { name: "kraberfunction".to_string() } });
         self.memory.insert("multiply".to_string(), Variable { value: Data::KraberFunction { body: multiply }, data_type: Data::Type { name: "kraberfunction".to_string() } });
         self.memory.insert("raise".to_string(), Variable { value: Data::KraberFunction { body: raise }, data_type: Data::Type { name: "kraberfunction".to_string() } });
+        self.memory.insert("join".to_string(), Variable { value: Data::KraberFunction { body: join }, data_type: Data::Type { name: "kraberfunction".to_string() } });
     }
 
     fn eval_expression(&mut self, expression: Node) -> Data {
@@ -765,7 +777,7 @@ impl Interpreter {
                             let type_name = collection[0].to_string().to_lowercase();
                             match &data_type {
                                 Data::Type { name } => {
-                                    if name.to_owned() != type_name {
+                                    if name.to_string() != type_name {
                                         match value {
                                             Data::Float { value: float }  => {
                                                 match name.as_str() {
@@ -782,7 +794,9 @@ impl Interpreter {
                                                             value: float as isize,
                                                         };
                                                     },
-                                                    _ => {}
+                                                    _ => {
+                                                        panic!("could not cast {type_name:#?} to {name:#?}");
+                                                    }
                                                 }
                                             },
                                             Data::Integer { value: integer }  => {

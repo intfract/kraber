@@ -8,9 +8,19 @@ It packs a punch like the Kraber .50-Cal. Kraber is designed to be minimal, flex
 
 ## Syntax
 
-- declaring a variable: `declare <identifier> as <type>`
-- setting a variable `set <identifier> to <expression>`
-- printing `<expression>`
+- declaring a variable called *foo* with type *integer*: `declare foo as integer`
+- setting the variable *foo* to the integer *+1* `set foo to +1`
+- printing *foo* `foo`
+
+### Operators
+
+Operators do not exist in Kraber. Instead, everything is done with functions because they are not limited to unary or binary operations. Functions that are both **commutative** and **associative** can take an infinite number of arguments.
+
+### Numeric Types
+
+Kraber only performs type coercion on numeric data types. 
+
+The `+` and `-` signs are not operators but are used to prefix integers (signed) to distinguish them from whole (unsigned) numbers.
 
 ## Examples
 
@@ -34,9 +44,10 @@ Boolean operations are handled by **Kraber Functions** written in rust.
 ```
 declare x as boolean
 set x to nand(true true)
+x
 ```
 
-## Arithmetic Operations
+### Arithmetic Operations
 
 ```
 declare x as float
@@ -44,6 +55,16 @@ set x to add(1 2)
 set x to multiply(x 2)
 set x to raise(x 2)
 x
+```
+
+## String Operations
+
+```
+declare word as text
+set word to "OK, "
+set word to multiply(word 2)
+set word to join(word "thanks for making Kraber!")
+word
 ```
 
 ### Loops
@@ -65,25 +86,6 @@ while x
 
 ### Functions
 
-```
-declare factorial as function
-set factorial to fun (n as whole) as whole
-{
-  declare result as whole
-  set result to 1
-  declare counter as whole
-  set counter to 2
-  while nand(equal(n counter) equal(n counter)) {
-    set result to multiply(result counter)
-    set counter to add(counter 1)
-  }
-  set result to multiply(result counter)
-  return result
-}
-declare x as whole
-set x to factorial(4)
-```
-
 > [!NOTE]
 > Functions can be **recursive** but they are **isolated** from the global scope.
 
@@ -100,4 +102,5 @@ set factorial to fun (n as whole) as whole
 }
 declare x as whole
 set x to factorial(4)
+x
 ```
