@@ -8,9 +8,30 @@ It packs a punch like the Kraber .50-Cal. Kraber is designed to be minimal, flex
 
 ## Syntax
 
+### Basic
+
 - declaring a variable called *foo* with type *integer*: `declare foo as integer`
-- setting the variable *foo* to the integer *+1* `set foo to +1`
-- printing *foo* `foo`
+- setting the variable *foo* to the integer *+1*: `set foo to +1`
+- printing *foo*: `foo`
+
+### Scopes
+
+Scoped blocks are defined by curly braces in Kraber. Accessing a local variable outside the block it was declared in will result in an error.
+
+```
+declare x as whole
+set x to 0
+while lt(x 4) {
+  declare y as whole
+  set x to add(x 1)
+  set y to multiply(x 2)
+}
+y
+```
+
+```
+called `Option::unwrap()` on a `None` value
+```
 
 ### Operators
 
@@ -72,9 +93,6 @@ word
 > [!TIP]
 > While loops can be used to implement `if` statements!
 
-> [!NOTE]
-> While loops are **not isolated** from the global scope.
-
 ```
 declare x as boolean
 set x to true
@@ -87,7 +105,7 @@ while x
 ### Functions
 
 > [!NOTE]
-> Functions can be **recursive** but they are **isolated** from the global scope.
+> Functions can be **recursive** but they are **isolated** from any outer scope.
 
 ```
 declare factorial as function

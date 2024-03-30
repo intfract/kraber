@@ -590,6 +590,7 @@ impl Parser {
 struct Interpreter {
     tree: Tree,
     memory: HashMap<String, Variable>,
+    locals: Vec<String>,
 }
 
 impl Interpreter {
@@ -666,6 +667,7 @@ impl Interpreter {
                         let mut sub = Interpreter {
                             tree,
                             memory,
+                            locals: Vec::new(),
                         };
                         sub.interpret();
                         sub.memory.get("return").unwrap().value.clone()
@@ -696,6 +698,7 @@ impl Interpreter {
         let mut sub = Interpreter {
             tree,
             memory: self.memory.clone(),
+            locals: Vec::new(),
         };
         let mut condition: bool = match self.eval_expression(expression.clone()) {
             Data::Boolean { value } => {
@@ -725,16 +728,16 @@ impl Interpreter {
                 None => {},
             }
         }
-        self.memory = sub.memory.clone();
+        self.memory = sub.filter_memory().to_owned();
         false
     }
 
-    fn interpret(&mut self) -> &mut HashMap<String, Variable> {
+    fn interpret(&mut self) {
         for node in self.tree.root.nodes.clone() {
             match &node.data {
                 Data::While => {
                     if self.loop_while(node.nodes[0].clone(), node.nodes[1..].to_vec().clone()) {
-                        return &mut self.memory;
+                        return;
                     }
                 },
                 Data::Return => {
@@ -748,7 +751,7 @@ impl Interpreter {
                         value,
                         data_type: self.memory.get("return").unwrap().data_type.clone(),
                     });
-                    return &mut self.memory;
+                    return;
                 },
                 Data::Declare => {
                     match &node.nodes[0].data {
@@ -757,6 +760,7 @@ impl Interpreter {
                                 value: Data::Null,
                                 data_type: node.nodes[1].data.clone(),
                             });
+                            self.locals.push(name.to_string());
                         },
                         _ => {}
                     };
@@ -882,6 +886,14 @@ impl Interpreter {
                 _ => {}
             };
         }
+    }
+
+    fn filter_memory(&mut self) -> &mut HashMap<String, Variable> {
+        for local in &self.locals {
+            if self.memory.contains_key(local) {
+                self.memory.remove(local);
+            }
+        }
         &mut self.memory
     }
 }
@@ -927,8 +939,10 @@ fn main() {
     let mut interpreter = Interpreter {
         tree: ast,
         memory: HashMap::new(),
+        locals: Vec::new(),
     };
     interpreter.init_memory();
-    let memory = interpreter.interpret();
+    interpreter.interpret();
+    let memory = interpreter.memory;
     println!("{memory:#?}");
 }

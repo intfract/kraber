@@ -1,5 +1,8 @@
-declare word as text
-set word to "OK, "
-set word to multiply(word 2)
-set word to join(word "thanks for making Kraber!")
-word
+declare x as whole
+set x to 0
+while lt(x 4) {
+  declare y as whole
+  set x to add(x 1)
+  set y to multiply(x 2)
+}
+y
