@@ -1,15 +1,1 @@
-declare ran as boolean
-set ran to false
-declare factorial as function
-set factorial to fun (n as whole) as whole
-{
-  set ran to true
-  declare y as boolean
-  set y to equal(n 0)
-  while y {
-    return 1
-  }
-  return multiply(n factorial(add(n -1)))
-}
-declare x as whole
-set x to factorial(4)
+raise(69 69)

@@ -104,21 +104,14 @@ while x
 
 ### Functions
 
-> [!NOTE]
-> Functions can be **recursive** but they are **isolated** from any outer scope.
-
 ```
 declare factorial as function
 set factorial to fun (n as whole) as whole
 {
-  declare y as boolean
-  set y to equal(n 0)
-  while y {
+  while equal(n 0) {
     return 1
   }
   return multiply(n factorial(add(n -1)))
 }
-declare x as whole
-set x to factorial(4)
-x
+factorial(69)
 ```

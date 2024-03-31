@@ -1,5 +1,4 @@
-use std::{collections::HashMap, fmt};
-use std::{env, fs};
+use std::{collections::HashMap, fmt, env, fs, time::Instant};
 
 #[derive(Debug, PartialEq, Clone)]
 enum Meta {
@@ -540,10 +539,8 @@ impl Parser {
                 ast.get_scope(scope.clone()).insert(&Data::Text { value: self.token.value.clone() });
             },
             Meta::REF => {
-                let sub_node = ast.get_scope(scope.clone()).insert(&Data::Identifier { name: self.token.value.clone() });
-                if sub_node.nodes.len() > 0 {
-                    self.build_expression(sub_node);
-                }
+                // let sub_node = ast.get_scope(scope.clone()).insert(&Data::Identifier { name: self.token.value.clone() });
+                self.build_expression(ast.get_scope(scope.clone()));
             },
             _ => {}
         }
@@ -938,7 +935,8 @@ fn main() {
         panic!("missing path to kraber file (cargo run -- <path>)");
     }
     let code = fs::read_to_string(&args[1]).expect("file not found");
-    println!("{}", code);
+    // println!("{}", code);
+    let start_time = Instant::now();
     let mut lexer = create_lexer(code);
     let tokens = lexer.get_tokens();
     /* for token in &tokens {
@@ -946,7 +944,7 @@ fn main() {
     } */
     let mut parser = create_parser(tokens);
     let ast = parser.parse();
-    println!("{ast:#?}");
+    // println!("{ast:#?}");
     let mut interpreter = Interpreter {
         tree: ast,
         memory: HashMap::new(),
@@ -954,6 +952,8 @@ fn main() {
     };
     interpreter.init_memory();
     interpreter.interpret();
+    let elapsed = start_time.elapsed();
+    println!("{:#?}", elapsed);
     let memory = interpreter.memory;
-    println!("{memory:#?}");
+    // println!("{memory:#?}");
 }
