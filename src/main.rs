@@ -162,6 +162,13 @@ fn raise(args: Vec<Data>) -> Data {
     }
 }
 
+fn floor(args: Vec<Data>) -> Data {
+    if args.len() != 1 {
+        panic!("expected 1 argument but received {}", args.len());
+    }
+    Data::Integer { value: expect_numeric(args[0].clone()) as isize }
+}
+
 fn join(args: Vec<Data>) -> Data {
     let mut text_string = "".to_string();
     for arg in args {
@@ -601,6 +608,7 @@ impl Interpreter {
         self.memory.insert("add".to_string(), Variable { value: Data::KraberFunction { body: add }, data_type: Data::Type { name: "kraberfunction".to_string() } });
         self.memory.insert("multiply".to_string(), Variable { value: Data::KraberFunction { body: multiply }, data_type: Data::Type { name: "kraberfunction".to_string() } });
         self.memory.insert("raise".to_string(), Variable { value: Data::KraberFunction { body: raise }, data_type: Data::Type { name: "kraberfunction".to_string() } });
+        self.memory.insert("floor".to_string(), Variable { value: Data::KraberFunction { body: floor }, data_type: Data::Type { name: "kraberfunction".to_string() } });
         self.memory.insert("join".to_string(), Variable { value: Data::KraberFunction { body: join }, data_type: Data::Type { name: "kraberfunction".to_string() } });
     }
 
@@ -651,9 +659,11 @@ impl Interpreter {
                             }
                         };
                         let mut memory = self.memory.clone();
+                        let mut locals: Vec<String> = Vec::new();
                         for i in 0..params.len() {
                             let param = &params[i];
                             let param_type = &param_types[i];
+                            locals.push(param.to_string());
                             memory.insert(param.to_string(), Variable {
                                 value: args[i].clone(),
                                 data_type: param_type.clone(),
@@ -663,13 +673,14 @@ impl Interpreter {
                             value: Data::Null,
                             data_type: return_types[0].clone(),
                         });
-                        // println!("{memory:#?}");
                         let mut sub = Interpreter {
                             tree,
                             memory,
-                            locals: Vec::new(),
+                            locals,
                         };
                         sub.interpret();
+                        sub.filter_memory();
+                        self.memory = sub.memory.clone();
                         sub.memory.get("return").unwrap().value.clone()
                     },
                     _ => {

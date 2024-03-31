@@ -1,8 +1,15 @@
-declare x as whole
-set x to 0
-while lt(x 4) {
-  declare y as whole
-  set x to add(x 1)
-  set y to multiply(x 2)
+declare ran as boolean
+set ran to false
+declare factorial as function
+set factorial to fun (n as whole) as whole
+{
+  set ran to true
+  declare y as boolean
+  set y to equal(n 0)
+  while y {
+    return 1
+  }
+  return multiply(n factorial(add(n -1)))
 }
-y
+declare x as whole
+set x to factorial(4)
