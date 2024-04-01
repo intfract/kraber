@@ -182,16 +182,8 @@ fn join(args: Vec<Data>) -> Data {
     Data::Text { value: text_string }
 }
 
-fn list(args: Vec<Data>) -> Data {
-    for arg in &args {
-        if !matches!(arg, &Data::Type { name: _ }) {
-            panic!("expected Data::Type");
-        }
-    }
-    Data::List {
-        data_types: args,
-        value: [].to_vec(),
-    }
+fn push(args: Vec<Data>) -> Data {
+    todo!();
 }
 
 impl fmt::Display for Data {
@@ -446,7 +438,7 @@ impl Parser {
                                     } else if self.token.category == Meta::TYP {
                                         sub_node.insert(&Data::Type { name: self.token.value.clone() });
                                     } else {
-                                        // other feature
+                                        // dynamic typing
                                     }
                                     self.step();
                                 }
@@ -803,9 +795,30 @@ impl Interpreter {
                 Data::Declare => {
                     match &node.nodes[0].data {
                         Data::Identifier { name } => {
+                            let data_type = node.nodes[1].data.clone();
                             self.memory.insert(name.clone(), Variable {
-                                value: Data::Null,
-                                data_type: node.nodes[1].data.clone(),
+                                value: match &data_type {
+                                    Data::Type { name } => {
+                                        match name.as_str() {
+                                            "list" => {
+                                                Data::List {
+                                                    data_types: node.nodes[1].nodes.iter().map(
+                                                        |x|
+                                                        x.data.clone()
+                                                    ).collect(),
+                                                    value: [].to_vec(),
+                                                }
+                                            },
+                                            _ => {
+                                                Data::Null
+                                            }
+                                        }
+                                    },
+                                    _ => {
+                                        panic!("expected Data::Type");
+                                    }
+                                },
+                                data_type,
                             });
                             self.locals.push(name.to_string());
                         },
@@ -992,7 +1005,7 @@ fn main() {
     interpreter.init_memory();
     interpreter.interpret();
     let elapsed = start_time.elapsed();
-    println!("{:#?}", elapsed);
+    // println!("{:#?}", elapsed);
     let memory = interpreter.memory;
-    // println!("{memory:#?}");
+    println!("{memory:#?}");
 }
