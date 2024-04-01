@@ -1,1 +1,1 @@
-raise(69 69)
+declare items as list[integer]

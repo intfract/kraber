@@ -12,6 +12,7 @@ enum Meta {
     TXT,
     FUN,
     PAR,
+    BRK,
     BRC,
 }
 
@@ -45,6 +46,10 @@ enum Data {
     Float { value: f64 },
     Boolean { value: bool },
     Text { value: String },
+    List {
+        data_types: Vec<Data>,
+        value: Vec<Data>,
+    },
 }
 
 fn expect_boolean(arg: Data) -> bool {
@@ -177,6 +182,18 @@ fn join(args: Vec<Data>) -> Data {
     Data::Text { value: text_string }
 }
 
+fn list(args: Vec<Data>) -> Data {
+    for arg in &args {
+        if !matches!(arg, &Data::Type { name: _ }) {
+            panic!("expected Data::Type");
+        }
+    }
+    Data::List {
+        data_types: args,
+        value: [].to_vec(),
+    }
+}
+
 impl fmt::Display for Data {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{:?}", self)
@@ -251,6 +268,7 @@ impl Lexer {
             "boolean".to_string(),
             "text".to_string(),
             "function".to_string(),
+            "list".to_string(),
         ];
         while !self.end {
             if self.letters.contains(self.character) {
@@ -283,6 +301,8 @@ impl Lexer {
                 tokens.push(Token { value: self.character.to_string(), category: Meta::PAR })
             } else if "{}".contains(self.character) {
                 tokens.push(Token { value: self.character.to_string(), category: Meta::BRC })
+            } else if "[]".contains(self.character) {
+                tokens.push(Token { value: self.character.to_string(), category: Meta::BRK })
             } else if self.character == '"' {
                 self.step();
                 let text = self.get_string();
@@ -413,7 +433,24 @@ impl Parser {
                             if self.token.category != Meta::TYP {
                                 panic!("expected TYP");
                             }
-                            node.insert(&Data::Type { name: self.token.value.clone() });
+                            let sub_node = node.insert(&Data::Type { name: self.token.value.clone() });
+                            if self.index < self.tokens.len() - 1 && self.tokens[self.index + 1].value == "[" {
+                                self.step();
+                                let mut counter: usize = 1;
+                                self.step();
+                                while !self.end && counter != 0 {
+                                    if self.token.value == "[" {
+                                        counter += 1;
+                                    } else if self.token.value == "]" {
+                                        counter -= 1;
+                                    } else if self.token.category == Meta::TYP {
+                                        sub_node.insert(&Data::Type { name: self.token.value.clone() });
+                                    } else {
+                                        // other feature
+                                    }
+                                    self.step();
+                                }
+                            }
                         }
                     },
                     "set" => {
@@ -539,8 +576,10 @@ impl Parser {
                 ast.get_scope(scope.clone()).insert(&Data::Text { value: self.token.value.clone() });
             },
             Meta::REF => {
-                // let sub_node = ast.get_scope(scope.clone()).insert(&Data::Identifier { name: self.token.value.clone() });
                 self.build_expression(ast.get_scope(scope.clone()));
+            },
+            Meta::TYP => {
+                ast.get_scope(scope.clone()).insert(&Data::Type { name: self.token.value.clone() });
             },
             _ => {}
         }
@@ -939,12 +978,12 @@ fn main() {
     let start_time = Instant::now();
     let mut lexer = create_lexer(code);
     let tokens = lexer.get_tokens();
-    /* for token in &tokens {
+    for token in &tokens {
         println!("{token}");
-    } */
+    }
     let mut parser = create_parser(tokens);
     let ast = parser.parse();
-    // println!("{ast:#?}");
+    println!("{ast:#?}");
     let mut interpreter = Interpreter {
         tree: ast,
         memory: HashMap::new(),
