@@ -183,7 +183,20 @@ fn join(args: Vec<Data>) -> Data {
 }
 
 fn push(args: Vec<Data>) -> Data {
-    todo!();
+    match &args[0] {
+        Data::List { data_types, value } => {
+            let mut x = value.clone();
+            x.push(args[1].clone());
+            // println!("{x:#?}");
+            Data::List {
+                data_types: data_types.to_vec(),
+                value: x,
+            }
+        },
+        _ => {
+            panic!("sus");
+        }
+    }
 }
 
 impl fmt::Display for Data {
@@ -442,6 +455,8 @@ impl Parser {
                                     }
                                     self.step();
                                 }
+                                self.index -= 1;
+                                self.token = self.tokens[self.index].clone();
                             }
                         }
                     },
@@ -568,6 +583,7 @@ impl Parser {
                 ast.get_scope(scope.clone()).insert(&Data::Text { value: self.token.value.clone() });
             },
             Meta::REF => {
+                println!("{:#?}", self.token);
                 self.build_expression(ast.get_scope(scope.clone()));
             },
             Meta::TYP => {
@@ -638,6 +654,7 @@ impl Interpreter {
         self.memory.insert("raise".to_string(), Variable { value: Data::KraberFunction { body: raise }, data_type: Data::Type { name: "kraberfunction".to_string() } });
         self.memory.insert("floor".to_string(), Variable { value: Data::KraberFunction { body: floor }, data_type: Data::Type { name: "kraberfunction".to_string() } });
         self.memory.insert("join".to_string(), Variable { value: Data::KraberFunction { body: join }, data_type: Data::Type { name: "kraberfunction".to_string() } });
+        self.memory.insert("push".to_string(), Variable { value: Data::KraberFunction { body: push }, data_type: Data::Type { name: "kraberfunction".to_string() } });
     }
 
     fn eval_expression(&mut self, expression: Node) -> Data {
