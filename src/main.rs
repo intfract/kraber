@@ -455,8 +455,7 @@ impl Parser {
                                     }
                                     self.step();
                                 }
-                                self.index -= 1;
-                                self.token = self.tokens[self.index].clone();
+                                self.back();
                             }
                         }
                     },
@@ -525,8 +524,7 @@ impl Parser {
                                             }
                                             self.step();
                                         }
-                                        self.index -= 1;
-                                        self.token = self.tokens[self.index].clone();
+                                        self.back();
                                         scope.pop(); // descope
                                         scope.pop(); // descope
                                     }
@@ -567,8 +565,7 @@ impl Parser {
                             }
                             self.step();
                         }
-                        self.index -= 1;
-                        self.token = self.tokens[self.index].clone();
+                        self.back();
                         scope.pop(); // descope
                     },
                     "return" => {
@@ -591,6 +588,11 @@ impl Parser {
             },
             _ => {}
         }
+    }
+
+    fn back(&mut self) {
+        self.index -= 1;
+        self.token = self.tokens[self.index].clone();
     }
     
     fn build_expression(&mut self, node: &mut Node) {
@@ -626,8 +628,7 @@ impl Parser {
                         }
                         self.step();
                     }
-                    self.index -= 1;
-                    self.token = self.tokens[self.index].clone();
+                    self.back();
                 }
             },
             _ => {
