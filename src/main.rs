@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fmt, env, fs, time::Instant};
+use std::{collections::HashMap, fmt, env, fs, time::Instant, mem};
 
 #[derive(Debug, PartialEq, Clone)]
 enum Meta {
@@ -50,6 +50,23 @@ enum Data {
         data_types: Vec<Data>,
         value: Vec<Data>,
     },
+}
+
+fn stringify_enum(data: &Data) -> String {
+    let enum_string = data.clone().to_string();
+    let collection: Vec<&str> = enum_string.split(' ').collect();
+    collection[0].to_string().to_lowercase()
+}
+
+fn expect_type(arg: Data) -> String {
+    return match arg {
+        Data::Type { name } => {
+            name
+        },
+        _ => {
+            panic!("expected Data::Type but got {:#?}", arg);
+        }
+    }
 }
 
 fn expect_boolean(arg: Data) -> bool {
@@ -186,8 +203,11 @@ fn push(args: Vec<Data>) -> Data {
     match &args[0] {
         Data::List { data_types, value } => {
             let mut x = value.clone();
+            let collection: Vec<String> = data_types.iter().map(|x| expect_type(x.clone())).collect();
+            if !collection.contains(&stringify_enum(&args[1])) {
+                panic!("expected one of types {:#?} but got {:#?}", &data_types, &args[1]);
+            }
             x.push(args[1].clone());
-            // println!("{x:#?}");
             Data::List {
                 data_types: data_types.to_vec(),
                 value: x,
@@ -846,33 +866,33 @@ impl Interpreter {
                 Data::Assign => {
                     match &node.nodes[0].data {
                         Data::Identifier { name } => {
-                            let data_type = self.memory.get(&name.clone()).unwrap().data_type.clone();
+                            let variable = self.memory.get(&name.clone()).unwrap().clone();
+                            let data_type = variable.data_type;
                             let mut expression = Node {
                                 id: 0,
                                 data: Data::Expression,
                                 nodes: Vec::new(),
                             };
                             expression.nodes.push(node.nodes[1].clone());
-                            let mut value = self.eval_expression(expression);
-                            let value_string = value.to_string();
-                            let collection: Vec<&str> = value_string.split(' ').collect();
-                            let type_name = collection[0].to_string().to_lowercase();
+                            let mut expression_value = self.eval_expression(expression);
+                            let type_name = stringify_enum(&expression_value);
+                            println!("{:#?}", mem::discriminant(&expression_value));
                             match &data_type {
                                 Data::Type { name } => {
                                     if name.to_string() != type_name {
-                                        match value {
+                                        match expression_value {
                                             Data::Float { value: float }  => {
                                                 match name.as_str() {
                                                     "whole" => {
                                                         if float < 0.0 {
                                                             panic!("could not cast negative float to whole");
                                                         }
-                                                        value = Data::Whole {
+                                                        expression_value = Data::Whole {
                                                             value: float as usize,
                                                         };
                                                     },
                                                     "integer" => {
-                                                        value = Data::Integer {
+                                                        expression_value = Data::Integer {
                                                             value: float as isize,
                                                         };
                                                     },
@@ -887,12 +907,12 @@ impl Interpreter {
                                                         if integer < 0 {
                                                             panic!("could not cast negative integer to whole");
                                                         }
-                                                        value = Data::Whole {
+                                                        expression_value = Data::Whole {
                                                             value: integer as usize,
                                                         };
                                                     },
                                                     "float" => {
-                                                        value = Data::Float {
+                                                        expression_value = Data::Float {
                                                             value: integer as f64,
                                                         };
                                                     },
@@ -904,12 +924,12 @@ impl Interpreter {
                                             Data::Whole { value: whole }  => {
                                                 match name.as_str() {
                                                     "integer" => {
-                                                        value = Data::Integer {
+                                                        expression_value = Data::Integer {
                                                             value: whole as isize,
                                                         };
                                                     },
                                                     "float" => {
-                                                        value = Data::Float {
+                                                        expression_value = Data::Float {
                                                             value: whole as f64,
                                                         };
                                                     },
@@ -922,6 +942,25 @@ impl Interpreter {
                                                 panic!("could not cast {type_name:#?} to {name:#?}");
                                             }
                                         }
+                                    } else if name == "list" {
+                                        match &variable.value {
+                                            Data::List { data_types: type_vector, value: old_vector } => {
+                                                match expression_value {
+                                                    Data::List { data_types, value } => {
+                                                        if type_vector.to_vec() != data_types {
+                                                            panic!("mismatched subtypes");
+                                                        }
+                                                        expression_value = Data::List { data_types, value };
+                                                    },
+                                                    _ => {
+                                                        panic!("could not cast {type_name:#?} to {name:#?}");
+                                                    }
+                                                }
+                                            },
+                                            _ => {
+                                                panic!("expected Data::List");
+                                            }
+                                        }
                                     }
                                 },
                                 _ => {
@@ -929,7 +968,7 @@ impl Interpreter {
                                 }
                             }
                             self.memory.insert(name.clone(), Variable {
-                                value,
+                                value: expression_value,
                                 data_type,
                             });
                         },
