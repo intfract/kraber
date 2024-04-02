@@ -108,7 +108,7 @@ fn expect_text(arg: Data) -> String {
     }
 }
 
-fn equal(args: Vec<Data>) -> Data {
+fn eq(args: Vec<Data>) -> Data {
     Data::Boolean {
         value: args.windows(2).all(
             |x|
@@ -667,7 +667,7 @@ struct Interpreter {
 
 impl Interpreter {
     fn init_memory(&mut self) {
-        self.memory.insert("equal".to_string(), Variable { value: Data::KraberFunction { body: equal }, data_type: Data::Type { name: "kraberfunction".to_string() } });
+        self.memory.insert("eq".to_string(), Variable { value: Data::KraberFunction { body: eq }, data_type: Data::Type { name: "kraberfunction".to_string() } });
         self.memory.insert("lt".to_string(), Variable { value: Data::KraberFunction { body: lt }, data_type: Data::Type { name: "kraberfunction".to_string() } });
         self.memory.insert("nand".to_string(), Variable { value: Data::KraberFunction { body: nand }, data_type: Data::Type { name: "kraberfunction".to_string() } });
         self.memory.insert("add".to_string(), Variable { value: Data::KraberFunction { body: add }, data_type: Data::Type { name: "kraberfunction".to_string() } });
@@ -876,7 +876,6 @@ impl Interpreter {
                             expression.nodes.push(node.nodes[1].clone());
                             let mut expression_value = self.eval_expression(expression);
                             let type_name = stringify_enum(&expression_value);
-                            println!("{:#?}", mem::discriminant(&expression_value));
                             match &data_type {
                                 Data::Type { name } => {
                                     if name.to_string() != type_name {
@@ -1048,12 +1047,12 @@ fn main() {
     let start_time = Instant::now();
     let mut lexer = create_lexer(code);
     let tokens = lexer.get_tokens();
-    for token in &tokens {
+    /* for token in &tokens {
         println!("{token}");
-    }
+    } */
     let mut parser = create_parser(tokens);
     let ast = parser.parse();
-    println!("{ast:#?}");
+    // println!("{ast:#?}");
     let mut interpreter = Interpreter {
         tree: ast,
         memory: HashMap::new(),
@@ -1062,7 +1061,7 @@ fn main() {
     interpreter.init_memory();
     interpreter.interpret();
     let elapsed = start_time.elapsed();
-    // println!("{:#?}", elapsed);
+    println!("{:#?}", elapsed);
     let memory = interpreter.memory;
-    println!("{memory:#?}");
+    // println!("{memory:#?}");
 }
