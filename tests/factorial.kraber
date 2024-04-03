@@ -1,7 +1,7 @@
 declare factorial as function
 set factorial to fun (n as whole) as whole
 {
-  while equal(n 0) {
+  while lt(n 2) {
     return 1
   }
   return multiply(n factorial(add(n -1)))
