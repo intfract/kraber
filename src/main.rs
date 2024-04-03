@@ -219,6 +219,22 @@ fn push(args: Vec<Data>) -> Data {
     }
 }
 
+fn pop(args: Vec<Data>) -> Data {
+    match &args[0] {
+        Data::List { data_types, value } => {
+            let mut x = value.clone();
+            x.pop();
+            Data::List {
+                data_types: data_types.to_vec(),
+                value: x,
+            }
+        },
+        _ => {
+            panic!("sus");
+        }
+    }
+}
+
 impl fmt::Display for Data {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{:?}", self)
@@ -676,6 +692,7 @@ impl Interpreter {
         self.memory.insert("floor".to_string(), Variable { value: Data::KraberFunction { body: floor }, data_type: Data::Type { name: "kraberfunction".to_string() } });
         self.memory.insert("join".to_string(), Variable { value: Data::KraberFunction { body: join }, data_type: Data::Type { name: "kraberfunction".to_string() } });
         self.memory.insert("push".to_string(), Variable { value: Data::KraberFunction { body: push }, data_type: Data::Type { name: "kraberfunction".to_string() } });
+        self.memory.insert("pop".to_string(), Variable { value: Data::KraberFunction { body: pop }, data_type: Data::Type { name: "kraberfunction".to_string() } });
     }
 
     fn eval_expression(&mut self, expression: Node) -> Data {
