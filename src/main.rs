@@ -24,7 +24,7 @@ enum Data {
     While,
     Expression,
     KraberFunction {
-        body: fn(Vec<Data>) -> Data,
+        body: fn(&Vec<Data>) -> Data,
     },
     FunctionContainer {
         params: Vec<String>,
@@ -58,10 +58,10 @@ fn stringify_enum(data: &Data) -> String {
     collection[0].to_string().to_lowercase()
 }
 
-fn expect_type(arg: Data) -> String {
+fn expect_type(arg: &Data) -> String {
     return match arg {
         Data::Type { name } => {
-            name
+            name.to_string()
         },
         _ => {
             panic!("expected Data::Type but got {:#?}", arg);
@@ -69,10 +69,10 @@ fn expect_type(arg: Data) -> String {
     }
 }
 
-fn expect_boolean(arg: Data) -> bool {
+fn expect_boolean(arg: &Data) -> bool {
     return match arg {
         Data::Boolean { value } => {
-            value
+            *value
         },
         _ => {
             panic!("expected Data::Boolean but got {:#?}", arg);
@@ -80,16 +80,16 @@ fn expect_boolean(arg: Data) -> bool {
     }
 }
 
-fn expect_numeric(arg: Data) -> f64 {
+fn expect_numeric(arg: &Data) -> f64 {
     return match arg {
         Data::Whole { value } => {
-            value as f64
+            *value as f64
         },
         Data::Integer { value } => {
-            value as f64
+            *value as f64
         },
         Data::Float { value } => {
-            value
+            *value
         },
         _ => {
             panic!("{:#?} is not numeric", arg);
@@ -97,10 +97,10 @@ fn expect_numeric(arg: Data) -> f64 {
     }
 }
 
-fn expect_text(arg: Data) -> String {
+fn expect_text(arg: &Data) -> String {
     return match arg {
         Data::Text { value } => {
-            value
+            value.to_string()
         },
         _ => {
             panic!("expected Data::Text but got {:#?}", arg);
@@ -108,38 +108,38 @@ fn expect_text(arg: Data) -> String {
     }
 }
 
-fn eq(args: Vec<Data>) -> Data {
+fn eq(args: &Vec<Data>) -> Data {
     Data::Boolean {
         value: args.windows(2).all(
             |x|
-            expect_numeric(x[0].clone()) == expect_numeric(x[1].clone())
+            expect_numeric(&x[0]) == expect_numeric(&x[1])
         )
     }
 }
 
-fn lt(args: Vec<Data>) -> Data {
+fn lt(args: &Vec<Data>) -> Data {
     if args.len() != 2 {
         panic!("expected 2 arguments but received {}", args.len());
     }
     Data::Boolean {
-        value: expect_numeric(args[0].clone()) < expect_numeric(args[1].clone())
+        value: expect_numeric(&args[0]) < expect_numeric(&args[1])
     }
 }
 
-fn nand(args: Vec<Data>) -> Data {
+fn nand(args: &Vec<Data>) -> Data {
     if args.len() != 2 {
         panic!("expected 2 arguments but received {}", args.len());
     }
     Data::Boolean {
         value: !(
-            expect_boolean(args[0].clone())
+            expect_boolean(&args[0])
             &&
-            expect_boolean(args[1].clone())
+            expect_boolean(&args[1])
         )
     }
 }
 
-fn add(args: Vec<Data>) -> Data {
+fn add(args: &Vec<Data>) -> Data {
     let mut sum: f64 = 0.0;
     for arg in args {
         let num: f64 = expect_numeric(arg);
@@ -148,7 +148,7 @@ fn add(args: Vec<Data>) -> Data {
     Data::Float { value: sum }
 }
 
-fn multiply(args: Vec<Data>) -> Data {
+fn multiply(args: &Vec<Data>) -> Data {
     let mut text_string = "".to_string();
     let mut product: f64 = 1.0;
     for arg in args {
@@ -171,39 +171,39 @@ fn multiply(args: Vec<Data>) -> Data {
     }
 }
 
-fn raise(args: Vec<Data>) -> Data {
+fn raise(args: &Vec<Data>) -> Data {
     if args.len() != 2 {
         panic!("expected 2 arguments but received {}", args.len());
     }
     Data::Float {
         value: f64::powf(
-            expect_numeric(args[0].clone()),
-            expect_numeric(args[1].clone())
+            expect_numeric(&args[0]),
+            expect_numeric(&args[1])
         )
     }
 }
 
-fn floor(args: Vec<Data>) -> Data {
+fn floor(args: &Vec<Data>) -> Data {
     if args.len() != 1 {
         panic!("expected 1 argument but received {}", args.len());
     }
-    Data::Integer { value: expect_numeric(args[0].clone()) as isize }
+    Data::Integer { value: expect_numeric(&args[0]) as isize }
 }
 
-fn join(args: Vec<Data>) -> Data {
+fn join(args: &Vec<Data>) -> Data {
     let mut text_string = "".to_string();
     for arg in args {
-        let string = expect_text(arg);
+        let string = expect_text(&arg);
         text_string += &string;
     }
     Data::Text { value: text_string }
 }
 
-fn push(args: Vec<Data>) -> Data {
+fn push(args: &Vec<Data>) -> Data {
     match &args[0] {
         Data::List { data_types, value } => {
             let mut x = value.clone();
-            let collection: Vec<String> = data_types.iter().map(|x| expect_type(x.clone())).collect();
+            let collection: Vec<String> = data_types.iter().map(|x| expect_type(&x)).collect();
             if !collection.contains(&stringify_enum(&args[1])) {
                 panic!("expected one of types {:#?} but got {:#?}", &data_types, &args[1]);
             }
@@ -699,7 +699,7 @@ impl Interpreter {
                                 x.data.clone()
                             }
                         ).collect();
-                        body(args)
+                        body(&args)
                     },
                     Data::Function { body, params, param_types, return_types } => {
                         let args: Vec<Data> = expression.nodes[0].nodes.iter().map(
