@@ -1,2 +1,2 @@
 declare items as list[integer]
-set items to push(items 0.0)
+set items to push(items +0)

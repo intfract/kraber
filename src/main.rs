@@ -219,7 +219,7 @@ fn push(args: &Vec<Data>) -> Data {
     }
 }
 
-fn pop(args: Vec<Data>) -> Data {
+fn pop(args: &Vec<Data>) -> Data {
     match &args[0] {
         Data::List { data_types, value } => {
             let mut x = value.clone();
@@ -616,7 +616,6 @@ impl Parser {
                 ast.get_scope(scope.clone()).insert(&Data::Text { value: self.token.value.clone() });
             },
             Meta::REF => {
-                println!("{:#?}", self.token);
                 self.build_expression(ast.get_scope(scope.clone()));
             },
             Meta::TYP => {
@@ -884,7 +883,6 @@ impl Interpreter {
                     match &node.nodes[0].data {
                         Data::Identifier { name } => {
                             let variable = self.memory.get(&name.clone()).unwrap().clone();
-                            let data_type = variable.data_type;
                             let mut expression = Node {
                                 id: 0,
                                 data: Data::Expression,
@@ -892,97 +890,7 @@ impl Interpreter {
                             };
                             expression.nodes.push(node.nodes[1].clone());
                             let mut expression_value = self.eval_expression(expression);
-                            let type_name = stringify_enum(&expression_value);
-                            match &data_type {
-                                Data::Type { name } => {
-                                    if name.to_string() != type_name {
-                                        match expression_value {
-                                            Data::Float { value: float }  => {
-                                                match name.as_str() {
-                                                    "whole" => {
-                                                        if float < 0.0 {
-                                                            panic!("could not cast negative float to whole");
-                                                        }
-                                                        expression_value = Data::Whole {
-                                                            value: float as usize,
-                                                        };
-                                                    },
-                                                    "integer" => {
-                                                        expression_value = Data::Integer {
-                                                            value: float as isize,
-                                                        };
-                                                    },
-                                                    _ => {
-                                                        panic!("could not cast {type_name:#?} to {name:#?}");
-                                                    }
-                                                }
-                                            },
-                                            Data::Integer { value: integer }  => {
-                                                match name.as_str() {
-                                                    "whole" => {
-                                                        if integer < 0 {
-                                                            panic!("could not cast negative integer to whole");
-                                                        }
-                                                        expression_value = Data::Whole {
-                                                            value: integer as usize,
-                                                        };
-                                                    },
-                                                    "float" => {
-                                                        expression_value = Data::Float {
-                                                            value: integer as f64,
-                                                        };
-                                                    },
-                                                    _ => {
-                                                        panic!("could not cast {type_name:#?} to {name:#?}");
-                                                    }
-                                                }
-                                            },
-                                            Data::Whole { value: whole }  => {
-                                                match name.as_str() {
-                                                    "integer" => {
-                                                        expression_value = Data::Integer {
-                                                            value: whole as isize,
-                                                        };
-                                                    },
-                                                    "float" => {
-                                                        expression_value = Data::Float {
-                                                            value: whole as f64,
-                                                        };
-                                                    },
-                                                    _ => {
-                                                        panic!("could not cast {type_name:#?} to {name:#?}");
-                                                    }
-                                                }
-                                            },
-                                            _ => {
-                                                panic!("could not cast {type_name:#?} to {name:#?}");
-                                            }
-                                        }
-                                    } else if name == "list" {
-                                        match &variable.value {
-                                            Data::List { data_types: type_vector, value: old_vector } => {
-                                                match expression_value {
-                                                    Data::List { data_types, value } => {
-                                                        if type_vector.to_vec() != data_types {
-                                                            panic!("mismatched subtypes");
-                                                        }
-                                                        expression_value = Data::List { data_types, value };
-                                                    },
-                                                    _ => {
-                                                        panic!("could not cast {type_name:#?} to {name:#?}");
-                                                    }
-                                                }
-                                            },
-                                            _ => {
-                                                panic!("expected Data::List");
-                                            }
-                                        }
-                                    }
-                                },
-                                _ => {
-                                    panic!("expected data type to be Data::Type");
-                                }
-                            }
+                            let data_type = cast(&mut expression_value, variable);
                             self.memory.insert(name.clone(), Variable {
                                 value: expression_value,
                                 data_type,
@@ -1029,6 +937,102 @@ impl Interpreter {
         }
         &mut self.memory
     }
+}
+
+fn cast(expression_value: &mut Data, variable: Variable) -> Data {
+    let data_type = variable.data_type;
+    let type_name = stringify_enum(&*expression_value);
+    match &data_type {
+        Data::Type { name } => {
+            if name.to_string() != type_name {
+                match *expression_value {
+                    Data::Float { value: float }  => {
+                        match name.as_str() {
+                            "whole" => {
+                                if float < 0.0 {
+                                    panic!("could not cast negative float to whole");
+                                }
+                                *expression_value = Data::Whole {
+                                    value: float as usize,
+                                };
+                            },
+                            "integer" => {
+                                *expression_value = Data::Integer {
+                                    value: float as isize,
+                                };
+                            },
+                            _ => {
+                                panic!("could not cast {type_name:#?} to {name:#?}");
+                            }
+                        }
+                    },
+                    Data::Integer { value: integer }  => {
+                        match name.as_str() {
+                            "whole" => {
+                                if integer < 0 {
+                                    panic!("could not cast negative integer to whole");
+                                }
+                                *expression_value = Data::Whole {
+                                    value: integer as usize,
+                                };
+                            },
+                            "float" => {
+                                *expression_value = Data::Float {
+                                    value: integer as f64,
+                                };
+                            },
+                            _ => {
+                                panic!("could not cast {type_name:#?} to {name:#?}");
+                            }
+                        }
+                    },
+                    Data::Whole { value: whole }  => {
+                        match name.as_str() {
+                            "integer" => {
+                                *expression_value = Data::Integer {
+                                    value: whole as isize,
+                                };
+                            },
+                            "float" => {
+                                *expression_value = Data::Float {
+                                    value: whole as f64,
+                                };
+                            },
+                            _ => {
+                                panic!("could not cast {type_name:#?} to {name:#?}");
+                            }
+                        }
+                    },
+                    _ => {
+                        panic!("could not cast {type_name:#?} to {name:#?}");
+                    }
+                }
+            } else if name == "list" {
+                match &variable.value {
+                    Data::List { data_types: type_vector, value: old_vector } => {
+                        match expression_value {
+                            Data::List { data_types, value } => {
+                                if type_vector.to_vec() != *data_types {
+                                    panic!("mismatched subtypes");
+                                }
+                                *expression_value = Data::List { data_types: data_types.to_vec(), value: value.to_vec() };
+                            },
+                            _ => {
+                                panic!("could not cast {type_name:#?} to {name:#?}");
+                            }
+                        }
+                    },
+                    _ => {
+                        panic!("expected Data::List");
+                    }
+                }
+            }
+        },
+        _ => {
+            panic!("expected data type to be Data::Type");
+        }
+    }
+    data_type
 }
 
 fn create_lexer(code: String) -> Lexer {
