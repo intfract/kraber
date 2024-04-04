@@ -47,7 +47,7 @@ enum Data {
     Boolean { value: bool },
     Text { value: String },
     List {
-        data_types: Vec<Data>,
+        data_types: Vec<Node>,
         value: Vec<Data>,
     },
 }
@@ -203,7 +203,8 @@ fn push(args: &Vec<Data>) -> Data {
     match &args[0] {
         Data::List { data_types, value } => {
             let mut x = value.clone();
-            let collection: Vec<String> = data_types.iter().map(|x| expect_type(&x)).collect();
+            // TODO: make a recursive function for parsing recursive types
+            let collection: Vec<String> = data_types.iter().map(|x| expect_type(&x.data)).collect();
             if !collection.contains(&stringify_enum(&args[1])) {
                 panic!("expected one of types {:#?} but got {:#?}", &data_types, &args[1]);
             }
@@ -475,24 +476,7 @@ impl Parser {
                                 panic!("expected TYP");
                             }
                             let sub_node = node.insert(&Data::Type { name: self.token.value.clone() });
-                            if self.index < self.tokens.len() - 1 && self.tokens[self.index + 1].value == "[" {
-                                self.step();
-                                let mut counter: usize = 1;
-                                self.step();
-                                while !self.end && counter != 0 {
-                                    if self.token.value == "[" {
-                                        counter += 1;
-                                    } else if self.token.value == "]" {
-                                        counter -= 1;
-                                    } else if self.token.category == Meta::TYP {
-                                        sub_node.insert(&Data::Type { name: self.token.value.clone() });
-                                    } else {
-                                        // dynamic typing
-                                    }
-                                    self.step();
-                                }
-                                self.back();
-                            }
+                            self.nest_types(sub_node);
                         }
                     },
                     "set" => {
@@ -625,6 +609,29 @@ impl Parser {
         }
     }
 
+    fn nest_types(&mut self, node: &mut Node) {
+        if self.index < self.tokens.len() - 1 && self.tokens[self.index + 1].value == "[" {
+            self.step();
+            let mut counter: usize = 1;
+            self.step();
+            while !self.end && counter != 0 {
+                if self.token.value == "[" {
+                    counter += 1;
+                } else if self.token.value == "]" {
+                    counter -= 1;
+                } else if self.token.category == Meta::TYP {
+                    // TODO: support recursive typing
+                    let sub_node = node.insert(&Data::Type { name: self.token.value.clone() });
+                    self.nest_types(sub_node);
+                } else {
+                    // dynamic typing
+                }
+                self.step();
+            }
+            self.back();
+        }
+    }
+    
     fn back(&mut self) {
         self.index -= 1;
         self.token = self.tokens[self.index].clone();
@@ -702,7 +709,7 @@ impl Interpreter {
                     Data::KraberFunction { body } => {
                         let args: Vec<Data> = expression.nodes[0].nodes.iter().map(
                             |x|
-                            if matches!(&x.data, Data::Identifier { name }) {
+                            if matches!(&x.data, Data::Identifier { name: _ }) {
                                 let mut nodes: Vec<Node> = Vec::new();
                                 nodes.push(x.clone());
                                 let expression = Node {
@@ -720,7 +727,7 @@ impl Interpreter {
                     Data::Function { body, params, param_types, return_types } => {
                         let args: Vec<Data> = expression.nodes[0].nodes.iter().map(
                             |x|
-                            if matches!(&x.data, Data::Identifier { name }) {
+                            if matches!(&x.data, Data::Identifier { name: _ }) {
                                 let mut nodes: Vec<Node> = Vec::new();
                                 nodes.push(x.clone());
                                 let expression = Node {
@@ -858,7 +865,7 @@ impl Interpreter {
                                                 Data::List {
                                                     data_types: node.nodes[1].nodes.iter().map(
                                                         |x|
-                                                        x.data.clone()
+                                                        x.clone()
                                                     ).collect(),
                                                     value: [].to_vec(),
                                                 }
@@ -912,7 +919,7 @@ impl Interpreter {
                         Data::Float { value } => println!("{value}"),
                         Data::Boolean { value } => println!("{value}"),
                         Data::Text { value } => println!("{value}"),
-                        Data::KraberFunction { body } => {
+                        Data::KraberFunction { body: _ } => {
                             let mut expression = Node {
                                 id: 0,
                                 data: Data::Expression,
@@ -1009,7 +1016,7 @@ fn cast(expression_value: &mut Data, variable: Variable) -> Data {
                 }
             } else if name == "list" {
                 match &variable.value {
-                    Data::List { data_types: type_vector, value: old_vector } => {
+                    Data::List { data_types: type_vector, value: _ } => {
                         match expression_value {
                             Data::List { data_types, value } => {
                                 if type_vector.to_vec() != *data_types {
@@ -1073,7 +1080,7 @@ fn main() {
     } */
     let mut parser = create_parser(tokens);
     let ast = parser.parse();
-    // println!("{ast:#?}");
+    println!("{ast:#?}");
     let mut interpreter = Interpreter {
         tree: ast,
         memory: HashMap::new(),
@@ -1084,5 +1091,5 @@ fn main() {
     let elapsed = start_time.elapsed();
     println!("{:#?}", elapsed);
     let memory = interpreter.memory;
-    // println!("{memory:#?}");
+    println!("{memory:#?}");
 }
