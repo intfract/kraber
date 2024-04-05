@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fmt, env, fs, time::Instant, mem};
+use std::{collections::HashMap, env, fmt, fs, mem, time::Instant};
 
 #[derive(Debug, PartialEq, Clone)]
 enum Meta {
@@ -38,16 +38,29 @@ enum Data {
         body: Vec<Node>,
     },
     Return,
-    Identifier { name: String },
-    Type { name: String },
+    Identifier {
+        name: String,
+    },
+    Type {
+        name: String,
+    },
     Null,
-    Whole { value: usize },
-    Integer{ value: isize},
-    Float { value: f64 },
-    Boolean { value: bool },
-    Text { value: String },
+    Whole {
+        value: usize,
+    },
+    Integer {
+        value: isize,
+    },
+    Float {
+        value: f64,
+    },
+    Boolean {
+        value: bool,
+    },
+    Text {
+        value: String,
+    },
     List {
-        data_types: Vec<Node>,
         value: Vec<Data>,
     },
 }
@@ -60,60 +73,47 @@ fn stringify_enum(data: &Data) -> String {
 
 fn expect_type(arg: &Data) -> String {
     return match arg {
-        Data::Type { name } => {
-            name.to_string()
-        },
+        Data::Type { name } => name.to_string(),
         _ => {
             panic!("expected Data::Type but got {:#?}", arg);
         }
-    }
+    };
 }
 
 fn expect_boolean(arg: &Data) -> bool {
     return match arg {
-        Data::Boolean { value } => {
-            *value
-        },
+        Data::Boolean { value } => *value,
         _ => {
             panic!("expected Data::Boolean but got {:#?}", arg);
         }
-    }
+    };
 }
 
 fn expect_numeric(arg: &Data) -> f64 {
     return match arg {
-        Data::Whole { value } => {
-            *value as f64
-        },
-        Data::Integer { value } => {
-            *value as f64
-        },
-        Data::Float { value } => {
-            *value
-        },
+        Data::Whole { value } => *value as f64,
+        Data::Integer { value } => *value as f64,
+        Data::Float { value } => *value,
         _ => {
             panic!("{:#?} is not numeric", arg);
         }
-    }
+    };
 }
 
 fn expect_text(arg: &Data) -> String {
     return match arg {
-        Data::Text { value } => {
-            value.to_string()
-        },
+        Data::Text { value } => value.to_string(),
         _ => {
             panic!("expected Data::Text but got {:#?}", arg);
         }
-    }
+    };
 }
 
 fn eq(args: &Vec<Data>) -> Data {
     Data::Boolean {
-        value: args.windows(2).all(
-            |x|
-            expect_numeric(&x[0]) == expect_numeric(&x[1])
-        )
+        value: args
+            .windows(2)
+            .all(|x| expect_numeric(&x[0]) == expect_numeric(&x[1])),
     }
 }
 
@@ -122,7 +122,7 @@ fn lt(args: &Vec<Data>) -> Data {
         panic!("expected 2 arguments but received {}", args.len());
     }
     Data::Boolean {
-        value: expect_numeric(&args[0]) < expect_numeric(&args[1])
+        value: expect_numeric(&args[0]) < expect_numeric(&args[1]),
     }
 }
 
@@ -131,11 +131,7 @@ fn nand(args: &Vec<Data>) -> Data {
         panic!("expected 2 arguments but received {}", args.len());
     }
     Data::Boolean {
-        value: !(
-            expect_boolean(&args[0])
-            &&
-            expect_boolean(&args[1])
-        )
+        value: !(expect_boolean(&args[0]) && expect_boolean(&args[1])),
     }
 }
 
@@ -157,7 +153,7 @@ fn multiply(args: &Vec<Data>) -> Data {
                 Data::Text { value } => {
                     text_string = value.to_string();
                     continue;
-                },
+                }
                 _ => {}
             }
         }
@@ -167,7 +163,9 @@ fn multiply(args: &Vec<Data>) -> Data {
     if text_string.is_empty() {
         Data::Float { value: product }
     } else {
-        Data::Text { value: text_string.repeat(product as usize) }
+        Data::Text {
+            value: text_string.repeat(product as usize),
+        }
     }
 }
 
@@ -176,10 +174,7 @@ fn raise(args: &Vec<Data>) -> Data {
         panic!("expected 2 arguments but received {}", args.len());
     }
     Data::Float {
-        value: f64::powf(
-            expect_numeric(&args[0]),
-            expect_numeric(&args[1])
-        )
+        value: f64::powf(expect_numeric(&args[0]), expect_numeric(&args[1])),
     }
 }
 
@@ -187,7 +182,9 @@ fn floor(args: &Vec<Data>) -> Data {
     if args.len() != 1 {
         panic!("expected 1 argument but received {}", args.len());
     }
-    Data::Integer { value: expect_numeric(&args[0]) as isize }
+    Data::Integer {
+        value: expect_numeric(&args[0]) as isize,
+    }
 }
 
 fn join(args: &Vec<Data>) -> Data {
@@ -199,21 +196,31 @@ fn join(args: &Vec<Data>) -> Data {
     Data::Text { value: text_string }
 }
 
+fn has_type(nodes: &Vec<Node>, type_node: Node) -> bool {
+    for node in nodes {
+        if type_node.data == node.data {
+            if node.nodes.len() > 0 {
+                if type_node.nodes.len() != 1 || type_node.nodes.len() > node.nodes.len() {
+                    return false;
+                }
+                return has_type(&node.nodes, type_node.nodes[0].clone())
+            }
+        }
+    }
+    false
+}
+
 fn push(args: &Vec<Data>) -> Data {
     match &args[0] {
-        Data::List { data_types, value } => {
+        Data::List { value } => {
             let mut x = value.clone();
             // TODO: make a recursive function for parsing recursive types
-            let collection: Vec<String> = data_types.iter().map(|x| expect_type(&x.data)).collect();
-            if !collection.contains(&stringify_enum(&args[1])) {
+            /* if !has_type(data_types, &args[1]) {
                 panic!("expected one of types {:#?} but got {:#?}", &data_types, &args[1]);
-            }
+            } */
             x.push(args[1].clone());
-            Data::List {
-                data_types: data_types.to_vec(),
-                value: x,
-            }
-        },
+            Data::List { value: x }
+        }
         _ => {
             panic!("sus");
         }
@@ -222,14 +229,11 @@ fn push(args: &Vec<Data>) -> Data {
 
 fn pop(args: &Vec<Data>) -> Data {
     match &args[0] {
-        Data::List { data_types, value } => {
+        Data::List { value } => {
             let mut x = value.clone();
             x.pop();
-            Data::List {
-                data_types: data_types.to_vec(),
-                value: x,
-            }
-        },
+            Data::List { value: x }
+        }
         _ => {
             panic!("sus");
         }
@@ -268,7 +272,11 @@ impl Lexer {
     fn step(&mut self) {
         self.index += 1;
         if self.index < self.code.len() {
-            self.character = self.code.chars().nth(self.index).expect("index is out of range");
+            self.character = self
+                .code
+                .chars()
+                .nth(self.index)
+                .expect("index is out of range");
         } else {
             self.end = true;
         }
@@ -316,39 +324,78 @@ impl Lexer {
             if self.letters.contains(self.character) {
                 let word = self.get_word();
                 if self.keywords.contains(&word) {
-                    tokens.push(Token { value: word, category: Meta::KEY });
+                    tokens.push(Token {
+                        value: word,
+                        category: Meta::KEY,
+                    });
                 } else if word == "false" || word == "true" {
-                    tokens.push(Token { value: word, category: Meta::BLN });
+                    tokens.push(Token {
+                        value: word,
+                        category: Meta::BLN,
+                    });
                 } else if types.contains(&word) {
-                    tokens.push(Token { value: word, category: Meta::TYP });
+                    tokens.push(Token {
+                        value: word,
+                        category: Meta::TYP,
+                    });
                 } else if word == "fun" {
-                    tokens.push(Token { value: word, category: Meta::FUN });
+                    tokens.push(Token {
+                        value: word,
+                        category: Meta::FUN,
+                    });
                 } else {
-                    tokens.push(Token { value: word, category: Meta::REF });
+                    tokens.push(Token {
+                        value: word,
+                        category: Meta::REF,
+                    });
                 }
                 continue;
-            } else if self.digits.contains(self.character) || self.character == '+' || self.character == '-' {
+            } else if self.digits.contains(self.character)
+                || self.character == '+'
+                || self.character == '-'
+            {
                 let mut number = self.character.to_string();
                 self.step();
                 number.push_str(&self.get_number());
                 if number.contains('.') {
-                    tokens.push(Token { value: number, category: Meta::FLT });
+                    tokens.push(Token {
+                        value: number,
+                        category: Meta::FLT,
+                    });
                 } else if number.contains('+') || number.contains('-') {
-                    tokens.push(Token { value: number, category: Meta::INT });
+                    tokens.push(Token {
+                        value: number,
+                        category: Meta::INT,
+                    });
                 } else {
-                    tokens.push(Token { value: number, category: Meta::WHL });
+                    tokens.push(Token {
+                        value: number,
+                        category: Meta::WHL,
+                    });
                 }
                 continue;
             } else if "()".contains(self.character) {
-                tokens.push(Token { value: self.character.to_string(), category: Meta::PAR })
+                tokens.push(Token {
+                    value: self.character.to_string(),
+                    category: Meta::PAR,
+                })
             } else if "{}".contains(self.character) {
-                tokens.push(Token { value: self.character.to_string(), category: Meta::BRC })
+                tokens.push(Token {
+                    value: self.character.to_string(),
+                    category: Meta::BRC,
+                })
             } else if "[]".contains(self.character) {
-                tokens.push(Token { value: self.character.to_string(), category: Meta::BRK })
+                tokens.push(Token {
+                    value: self.character.to_string(),
+                    category: Meta::BRK,
+                })
             } else if self.character == '"' {
                 self.step();
                 let text = self.get_string();
-                tokens.push(Token { value: text, category: Meta::TXT });
+                tokens.push(Token {
+                    value: text,
+                    category: Meta::TXT,
+                });
             }
             self.step();
         }
@@ -359,7 +406,7 @@ impl Lexer {
 #[derive(Debug, Clone)]
 struct Variable {
     value: Data,
-    data_type: Data,
+    data_type: Vec<Node>,
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -395,11 +442,9 @@ impl Node {
         let mut node = self;
 
         let next_node_idx = Node::get_child_idx(&node.nodes, node.nodes.len());
-        
+
         node = match next_node_idx {
-            Some(x) => {
-                node.nodes[x].insert(item)
-            },
+            Some(x) => node.nodes[x].insert(item),
             None => {
                 let new_node = Node {
                     id: node.nodes.len(),
@@ -468,17 +513,21 @@ impl Parser {
                             panic!("expected REF");
                         }
                         let node = ast.get_scope(scope.clone()).insert(&Data::Declare);
-                        node.insert(&Data::Identifier { name: self.token.value.clone() });
+                        node.insert(&Data::Identifier {
+                            name: self.token.value.clone(),
+                        });
                         self.step();
                         if self.token.value == "as" {
                             self.step();
                             if self.token.category != Meta::TYP {
                                 panic!("expected TYP");
                             }
-                            let sub_node = node.insert(&Data::Type { name: self.token.value.clone() });
+                            let sub_node = node.insert(&Data::Type {
+                                name: self.token.value.clone(),
+                            });
                             self.nest_types(sub_node);
                         }
-                    },
+                    }
                     "set" => {
                         self.step();
                         if self.token.category != Meta::REF {
@@ -487,7 +536,9 @@ impl Parser {
                         let scoped_node = ast.get_scope(scope.clone());
                         scope.push(scoped_node.nodes.len());
                         let node = scoped_node.insert(&Data::Assign);
-                        node.insert(&Data::Identifier { name: self.token.value.clone() });
+                        node.insert(&Data::Identifier {
+                            name: self.token.value.clone(),
+                        });
                         self.step();
                         if self.token.value == "to" {
                             self.step();
@@ -496,7 +547,9 @@ impl Parser {
                                 Meta::FUN => {
                                     let mut params: Vec<String> = Vec::new();
                                     let mut param_types: Vec<Data> = Vec::new();
-                                    if self.index < self.tokens.len() - 1 && self.tokens[self.index + 1].value == "(" {
+                                    if self.index < self.tokens.len() - 1
+                                        && self.tokens[self.index + 1].value == "("
+                                    {
                                         self.step();
                                         let mut counter: usize = 1;
                                         self.step();
@@ -513,7 +566,9 @@ impl Parser {
                                                     if self.token.category != Meta::TYP {
                                                         panic!("expected TYP");
                                                     }
-                                                    param_types.push(Data::Type { name: self.token.value.clone() });
+                                                    param_types.push(Data::Type {
+                                                        name: self.token.value.clone(),
+                                                    });
                                                 }
                                             } else {
                                                 // other feature
@@ -525,13 +580,19 @@ impl Parser {
                                             if self.token.category != Meta::TYP {
                                                 panic!("expected TYP");
                                             }
-                                            Data::Type { name: self.token.value.clone() }
+                                            Data::Type {
+                                                name: self.token.value.clone(),
+                                            }
                                         } else {
                                             panic!("expected function return type");
                                         };
                                         self.step();
                                         scope.push(node.nodes.len());
-                                        node.insert(&Data::FunctionContainer { params, param_types, return_types: [return_type].to_vec() });
+                                        node.insert(&Data::FunctionContainer {
+                                            params,
+                                            param_types,
+                                            return_types: [return_type].to_vec(),
+                                        });
                                         let mut counter: usize = 1;
                                         self.step();
                                         while !self.end && counter != 0 {
@@ -548,14 +609,14 @@ impl Parser {
                                         scope.pop(); // descope
                                         scope.pop(); // descope
                                     }
-                                },
+                                }
                                 _ => {
                                     scope.pop(); // descope
                                     self.build_expression(node);
                                 }
                             }
                         }
-                    },
+                    }
                     "while" => {
                         self.step();
                         let scoped_node = ast.get_scope(scope.clone());
@@ -587,24 +648,28 @@ impl Parser {
                         }
                         self.back();
                         scope.pop(); // descope
-                    },
+                    }
                     "return" => {
                         let node = ast.get_scope(scope.clone()).insert(&Data::Return);
                         self.step();
                         self.build_expression(node);
-                    },
+                    }
                     _ => {}
                 }
-            },
+            }
             Meta::TXT => {
-                ast.get_scope(scope.clone()).insert(&Data::Text { value: self.token.value.clone() });
-            },
+                ast.get_scope(scope.clone()).insert(&Data::Text {
+                    value: self.token.value.clone(),
+                });
+            }
             Meta::REF => {
                 self.build_expression(ast.get_scope(scope.clone()));
-            },
+            }
             Meta::TYP => {
-                ast.get_scope(scope.clone()).insert(&Data::Type { name: self.token.value.clone() });
-            },
+                ast.get_scope(scope.clone()).insert(&Data::Type {
+                    name: self.token.value.clone(),
+                });
+            }
             _ => {}
         }
     }
@@ -621,7 +686,9 @@ impl Parser {
                     counter -= 1;
                 } else if self.token.category == Meta::TYP {
                     // TODO: support recursive typing
-                    let sub_node = node.insert(&Data::Type { name: self.token.value.clone() });
+                    let sub_node = node.insert(&Data::Type {
+                        name: self.token.value.clone(),
+                    });
                     self.nest_types(sub_node);
                 } else {
                     // dynamic typing
@@ -631,31 +698,43 @@ impl Parser {
             self.back();
         }
     }
-    
+
     fn back(&mut self) {
         self.index -= 1;
         self.token = self.tokens[self.index].clone();
     }
-    
+
     fn build_expression(&mut self, node: &mut Node) {
         match self.token.category {
             Meta::WHL => {
-                node.insert(&Data::Whole { value: self.token.value.clone().parse().unwrap() });
-            },
+                node.insert(&Data::Whole {
+                    value: self.token.value.clone().parse().unwrap(),
+                });
+            }
             Meta::INT => {
-                node.insert(&Data::Integer { value: self.token.value.clone().parse().unwrap() });
-            },
+                node.insert(&Data::Integer {
+                    value: self.token.value.clone().parse().unwrap(),
+                });
+            }
             Meta::FLT => {
-                node.insert(&Data::Float { value: self.token.value.clone().parse().unwrap() });
-            },
+                node.insert(&Data::Float {
+                    value: self.token.value.clone().parse().unwrap(),
+                });
+            }
             Meta::BLN => {
-                node.insert(&Data::Boolean { value: self.token.value.clone().parse().unwrap() });
-            },
+                node.insert(&Data::Boolean {
+                    value: self.token.value.clone().parse().unwrap(),
+                });
+            }
             Meta::TXT => {
-                node.insert(&Data::Text { value: self.token.value.clone() });
-            },
+                node.insert(&Data::Text {
+                    value: self.token.value.clone(),
+                });
+            }
             Meta::REF => {
-                let sub_node = node.insert(&Data::Identifier { name: self.token.value.clone() });
+                let sub_node = node.insert(&Data::Identifier {
+                    name: self.token.value.clone(),
+                });
                 if self.index < self.tokens.len() - 1 && self.tokens[self.index + 1].value == "(" {
                     self.step();
                     let mut counter: usize = 1;
@@ -672,13 +751,23 @@ impl Parser {
                     }
                     self.back();
                 }
-            },
+            }
             _ => {
                 println!("{node:?}");
                 panic!("expected expression but got {:?}", self.token);
             }
         }
     }
+}
+
+fn new_node_vec(data: Data) -> Vec<Node> {
+    [
+        Node {
+            id: 0,
+            data,
+            nodes: [].to_vec(),
+        }
+    ].to_vec()
 }
 
 struct Interpreter {
@@ -689,16 +778,116 @@ struct Interpreter {
 
 impl Interpreter {
     fn init_memory(&mut self) {
-        self.memory.insert("eq".to_string(), Variable { value: Data::KraberFunction { body: eq }, data_type: Data::Type { name: "kraberfunction".to_string() } });
-        self.memory.insert("lt".to_string(), Variable { value: Data::KraberFunction { body: lt }, data_type: Data::Type { name: "kraberfunction".to_string() } });
-        self.memory.insert("nand".to_string(), Variable { value: Data::KraberFunction { body: nand }, data_type: Data::Type { name: "kraberfunction".to_string() } });
-        self.memory.insert("add".to_string(), Variable { value: Data::KraberFunction { body: add }, data_type: Data::Type { name: "kraberfunction".to_string() } });
-        self.memory.insert("multiply".to_string(), Variable { value: Data::KraberFunction { body: multiply }, data_type: Data::Type { name: "kraberfunction".to_string() } });
-        self.memory.insert("raise".to_string(), Variable { value: Data::KraberFunction { body: raise }, data_type: Data::Type { name: "kraberfunction".to_string() } });
-        self.memory.insert("floor".to_string(), Variable { value: Data::KraberFunction { body: floor }, data_type: Data::Type { name: "kraberfunction".to_string() } });
-        self.memory.insert("join".to_string(), Variable { value: Data::KraberFunction { body: join }, data_type: Data::Type { name: "kraberfunction".to_string() } });
-        self.memory.insert("push".to_string(), Variable { value: Data::KraberFunction { body: push }, data_type: Data::Type { name: "kraberfunction".to_string() } });
-        self.memory.insert("pop".to_string(), Variable { value: Data::KraberFunction { body: pop }, data_type: Data::Type { name: "kraberfunction".to_string() } });
+        self.memory.insert(
+            "eq".to_string(),
+            Variable {
+                value: Data::KraberFunction { body: eq },
+                data_type: new_node_vec(
+                    Data::Type {
+                        name: "kraberfunction".to_string(),
+                    }
+                ),
+            },
+        );
+        self.memory.insert(
+            "lt".to_string(),
+            Variable {
+                value: Data::KraberFunction { body: lt },
+                data_type: new_node_vec(
+                    Data::Type {
+                        name: "kraberfunction".to_string(),
+                    }
+                ),
+            },
+        );
+        self.memory.insert(
+            "nand".to_string(),
+            Variable {
+                value: Data::KraberFunction { body: nand },
+                data_type: new_node_vec(
+                    Data::Type {
+                        name: "kraberfunction".to_string(),
+                    }
+                ),
+            },
+        );
+        self.memory.insert(
+            "add".to_string(),
+            Variable {
+                value: Data::KraberFunction { body: add },
+                data_type: new_node_vec(
+                    Data::Type {
+                        name: "kraberfunction".to_string(),
+                    }
+                ),
+            },
+        );
+        self.memory.insert(
+            "multiply".to_string(),
+            Variable {
+                value: Data::KraberFunction { body: multiply },
+                data_type: new_node_vec(
+                    Data::Type {
+                        name: "kraberfunction".to_string(),
+                    }
+                ),
+            },
+        );
+        self.memory.insert(
+            "raise".to_string(),
+            Variable {
+                value: Data::KraberFunction { body: raise },
+                data_type: new_node_vec(
+                    Data::Type {
+                        name: "kraberfunction".to_string(),
+                    }
+                ),
+            },
+        );
+        self.memory.insert(
+            "floor".to_string(),
+            Variable {
+                value: Data::KraberFunction { body: floor },
+                data_type: new_node_vec(
+                    Data::Type {
+                        name: "kraberfunction".to_string(),
+                    }
+                ),
+            },
+        );
+        self.memory.insert(
+            "join".to_string(),
+            Variable {
+                value: Data::KraberFunction { body: join },
+                data_type: new_node_vec(
+                    Data::Type {
+                        name: "kraberfunction".to_string(),
+                    }
+                ),
+            },
+        );
+        self.memory.insert(
+            "push".to_string(),
+            Variable {
+                value: Data::KraberFunction { body: push },
+                data_type: new_node_vec(
+                    Data::Type {
+                        name: "kraberfunction".to_string(),
+                    }
+                ),
+            },
+        );
+        self.memory.insert(
+            "pop".to_string(),
+            Variable {
+                value: Data::KraberFunction { body: pop },
+                data_type: new_node_vec(
+                    Data::Type {
+                        name: "kraberfunction".to_string(),
+                    }
+                ),
+            },
+        );
     }
 
     fn eval_expression(&mut self, expression: Node) -> Data {
@@ -707,45 +896,56 @@ impl Interpreter {
                 let var = self.memory.get(&name.clone()).unwrap().clone();
                 let data: Data = match &var.value {
                     Data::KraberFunction { body } => {
-                        let args: Vec<Data> = expression.nodes[0].nodes.iter().map(
-                            |x|
-                            if matches!(&x.data, Data::Identifier { name: _ }) {
-                                let mut nodes: Vec<Node> = Vec::new();
-                                nodes.push(x.clone());
-                                let expression = Node {
-                                    id: 0,
-                                    data: Data::Expression,
-                                    nodes,
-                                };
-                                self.eval_expression(expression)
-                            } else {
-                                x.data.clone()
-                            }
-                        ).collect();
+                        let args: Vec<Data> = expression.nodes[0]
+                            .nodes
+                            .iter()
+                            .map(|x| {
+                                if matches!(&x.data, Data::Identifier { name: _ }) {
+                                    let mut nodes: Vec<Node> = Vec::new();
+                                    nodes.push(x.clone());
+                                    let expression = Node {
+                                        id: 0,
+                                        data: Data::Expression,
+                                        nodes,
+                                    };
+                                    self.eval_expression(expression)
+                                } else {
+                                    x.data.clone()
+                                }
+                            })
+                            .collect();
                         body(&args)
-                    },
-                    Data::Function { body, params, param_types, return_types } => {
-                        let args: Vec<Data> = expression.nodes[0].nodes.iter().map(
-                            |x|
-                            if matches!(&x.data, Data::Identifier { name: _ }) {
-                                let mut nodes: Vec<Node> = Vec::new();
-                                nodes.push(x.clone());
-                                let expression = Node {
-                                    id: 0,
-                                    data: Data::Expression,
-                                    nodes,
-                                };
-                                self.eval_expression(expression)
-                            } else {
-                                x.data.clone()
-                            }
-                        ).collect();
+                    }
+                    Data::Function {
+                        body,
+                        params,
+                        param_types,
+                        return_types,
+                    } => {
+                        let args: Vec<Data> = expression.nodes[0]
+                            .nodes
+                            .iter()
+                            .map(|x| {
+                                if matches!(&x.data, Data::Identifier { name: _ }) {
+                                    let mut nodes: Vec<Node> = Vec::new();
+                                    nodes.push(x.clone());
+                                    let expression = Node {
+                                        id: 0,
+                                        data: Data::Expression,
+                                        nodes,
+                                    };
+                                    self.eval_expression(expression)
+                                } else {
+                                    x.data.clone()
+                                }
+                            })
+                            .collect();
                         let tree = Tree {
                             root: Node {
                                 id: 0,
                                 data: Data::Main,
                                 nodes: body.to_vec(),
-                            }
+                            },
                         };
                         let mut memory = self.memory.clone();
                         let mut locals: Vec<String> = Vec::new();
@@ -753,15 +953,21 @@ impl Interpreter {
                             let param = &params[i];
                             let param_type = &param_types[i];
                             locals.push(param.to_string());
-                            memory.insert(param.to_string(), Variable {
-                                value: args[i].clone(),
-                                data_type: param_type.clone(),
-                            });
+                            memory.insert(
+                                param.to_string(),
+                                Variable {
+                                    value: args[i].clone(),
+                                    data_type: new_node_vec(param_type.clone()),
+                                },
+                            );
                         }
-                        memory.insert("return".to_string(), Variable {
-                            value: Data::Null,
-                            data_type: return_types[0].clone(),
-                        });
+                        memory.insert(
+                            "return".to_string(),
+                            Variable {
+                                value: Data::Null,
+                                data_type: new_node_vec(return_types[0].clone()),
+                            },
+                        );
                         let mut sub = Interpreter {
                             tree,
                             memory,
@@ -771,20 +977,23 @@ impl Interpreter {
                         sub.filter_memory();
                         self.memory = sub.memory.clone();
                         sub.memory.get("return").unwrap().value.clone()
-                    },
-                    _ => {
-                        var.value.clone()
                     }
+                    _ => var.value.clone(),
                 };
                 data
-            },
-            Data::FunctionContainer { params, param_types, return_types } => {
-                Data::Function { params: params.to_vec(), param_types: param_types.to_vec(), body: expression.nodes[0].nodes.clone(), return_types: return_types.to_vec() }
-            },
-            _ => {
-                expression.nodes[0].data.clone()
             }
-        }
+            Data::FunctionContainer {
+                params,
+                param_types,
+                return_types,
+            } => Data::Function {
+                params: params.to_vec(),
+                param_types: param_types.to_vec(),
+                body: expression.nodes[0].nodes.clone(),
+                return_types: return_types.to_vec(),
+            },
+            _ => expression.nodes[0].data.clone(),
+        };
     }
 
     fn loop_while(&mut self, expression: Node, body: Vec<Node>) -> bool {
@@ -801,9 +1010,7 @@ impl Interpreter {
             locals: Vec::new(),
         };
         let mut condition: bool = match self.eval_expression(expression.clone()) {
-            Data::Boolean { value } => {
-                value
-            },
+            Data::Boolean { value } => value,
             _ => {
                 panic!("expected boolean");
             }
@@ -811,9 +1018,7 @@ impl Interpreter {
         while condition {
             sub.interpret();
             condition = match sub.eval_expression(expression.clone()) {
-                Data::Boolean { value } => {
-                    value
-                },
+                Data::Boolean { value } => value,
                 _ => {
                     panic!("expected boolean");
                 }
@@ -824,8 +1029,8 @@ impl Interpreter {
                         self.memory = sub.memory.clone();
                         return true;
                     }
-                },
-                None => {},
+                }
+                None => {}
             }
         }
         self.memory = sub.filter_memory().to_owned();
@@ -839,7 +1044,7 @@ impl Interpreter {
                     if self.loop_while(node.nodes[0].clone(), node.nodes[1..].to_vec().clone()) {
                         return;
                     }
-                },
+                }
                 Data::Return => {
                     let expression = Node {
                         id: 0,
@@ -847,45 +1052,40 @@ impl Interpreter {
                         nodes: node.nodes.clone(),
                     };
                     let value = self.eval_expression(expression);
-                    self.memory.insert("return".to_string(), Variable {
-                        value,
-                        data_type: self.memory.get("return").unwrap().data_type.clone(),
-                    });
+                    self.memory.insert(
+                        "return".to_string(),
+                        Variable {
+                            value,
+                            data_type: self.memory.get("return").unwrap().data_type.clone(),
+                        },
+                    );
                     return;
-                },
+                }
                 Data::Declare => {
                     match &node.nodes[0].data {
                         Data::Identifier { name } => {
-                            let data_type = node.nodes[1].data.clone();
-                            self.memory.insert(name.clone(), Variable {
-                                value: match &data_type {
-                                    Data::Type { name } => {
-                                        match name.as_str() {
-                                            "list" => {
-                                                Data::List {
-                                                    data_types: node.nodes[1].nodes.iter().map(
-                                                        |x|
-                                                        x.clone()
-                                                    ).collect(),
-                                                    value: [].to_vec(),
-                                                }
-                                            },
-                                            _ => {
-                                                Data::Null
-                                            }
+                            let data_type = node.nodes[1..].to_vec();
+                            println!("{:#?}", data_type);
+                            self.memory.insert(
+                                name.clone(),
+                                Variable {
+                                    value: match &data_type[0].data {
+                                        Data::Type { name } => match name.as_str() {
+                                            "list" => Data::List { value: [].to_vec() },
+                                            _ => Data::Null,
+                                        },
+                                        _ => {
+                                            panic!("expected Data::Type");
                                         }
                                     },
-                                    _ => {
-                                        panic!("expected Data::Type");
-                                    }
+                                    data_type,
                                 },
-                                data_type,
-                            });
+                            );
                             self.locals.push(name.to_string());
-                        },
+                        }
                         _ => {}
                     };
-                },
+                }
                 Data::Assign => {
                     match &node.nodes[0].data {
                         Data::Identifier { name } => {
@@ -898,17 +1098,20 @@ impl Interpreter {
                             expression.nodes.push(node.nodes[1].clone());
                             let mut expression_value = self.eval_expression(expression);
                             let data_type = cast(&mut expression_value, variable);
-                            self.memory.insert(name.clone(), Variable {
-                                value: expression_value,
-                                data_type,
-                            });
-                        },
+                            self.memory.insert(
+                                name.clone(),
+                                Variable {
+                                    value: expression_value,
+                                    data_type,
+                                },
+                            );
+                        }
                         _ => {}
                     };
-                },
+                }
                 Data::Text { value } => {
                     println!("{}", value); // implicit print
-                },
+                }
                 Data::Identifier { name } => {
                     let x = &self.memory.get(&name.clone()).unwrap().value;
                     match x {
@@ -930,7 +1133,7 @@ impl Interpreter {
                         }
                         _ => {}
                     };
-                },
+                }
                 _ => {}
             };
         }
@@ -946,15 +1149,15 @@ impl Interpreter {
     }
 }
 
-fn cast(expression_value: &mut Data, variable: Variable) -> Data {
-    let data_type = variable.data_type;
+fn cast(expression_value: &mut Data, variable: Variable) -> Vec<Node> {
+    let data_types = variable.data_type;
     let type_name = stringify_enum(&*expression_value);
-    match &data_type {
-        Data::Type { name } => {
-            if name.to_string() != type_name {
-                match *expression_value {
-                    Data::Float { value: float }  => {
-                        match name.as_str() {
+    for data_type in &data_types {
+        match &data_type.data {
+            Data::Type { name } => {
+                if name.to_string() != type_name {
+                    match *expression_value {
+                        Data::Float { value: float } => match name.as_str() {
                             "whole" => {
                                 if float < 0.0 {
                                     panic!("could not cast negative float to whole");
@@ -962,19 +1165,17 @@ fn cast(expression_value: &mut Data, variable: Variable) -> Data {
                                 *expression_value = Data::Whole {
                                     value: float as usize,
                                 };
-                            },
+                            }
                             "integer" => {
                                 *expression_value = Data::Integer {
                                     value: float as isize,
                                 };
-                            },
+                            }
                             _ => {
                                 panic!("could not cast {type_name:#?} to {name:#?}");
                             }
-                        }
-                    },
-                    Data::Integer { value: integer }  => {
-                        match name.as_str() {
+                        },
+                        Data::Integer { value: integer } => match name.as_str() {
                             "whole" => {
                                 if integer < 0 {
                                     panic!("could not cast negative integer to whole");
@@ -982,64 +1183,59 @@ fn cast(expression_value: &mut Data, variable: Variable) -> Data {
                                 *expression_value = Data::Whole {
                                     value: integer as usize,
                                 };
-                            },
+                            }
                             "float" => {
                                 *expression_value = Data::Float {
                                     value: integer as f64,
                                 };
-                            },
+                            }
                             _ => {
                                 panic!("could not cast {type_name:#?} to {name:#?}");
                             }
-                        }
-                    },
-                    Data::Whole { value: whole }  => {
-                        match name.as_str() {
+                        },
+                        Data::Whole { value: whole } => match name.as_str() {
                             "integer" => {
                                 *expression_value = Data::Integer {
                                     value: whole as isize,
                                 };
-                            },
+                            }
                             "float" => {
                                 *expression_value = Data::Float {
                                     value: whole as f64,
                                 };
-                            },
+                            }
                             _ => {
                                 panic!("could not cast {type_name:#?} to {name:#?}");
                             }
+                        },
+                        _ => {
+                            panic!("could not cast {type_name:#?} to {name:#?}");
                         }
-                    },
-                    _ => {
-                        panic!("could not cast {type_name:#?} to {name:#?}");
                     }
-                }
-            } else if name == "list" {
-                match &variable.value {
-                    Data::List { data_types: type_vector, value: _ } => {
-                        match expression_value {
-                            Data::List { data_types, value } => {
-                                if type_vector.to_vec() != *data_types {
-                                    panic!("mismatched subtypes");
-                                }
-                                *expression_value = Data::List { data_types: data_types.to_vec(), value: value.to_vec() };
-                            },
+                } else if name == "list" {
+                    match &variable.value {
+                        Data::List { value: _ } => match expression_value {
+                            Data::List { value } => {
+                                *expression_value = Data::List {
+                                    value: value.to_vec(),
+                                };
+                            }
                             _ => {
                                 panic!("could not cast {type_name:#?} to {name:#?}");
                             }
+                        },
+                        _ => {
+                            panic!("expected Data::List");
                         }
-                    },
-                    _ => {
-                        panic!("expected Data::List");
                     }
-                }
+                } // else do not mutate `expression_value`
             }
-        },
-        _ => {
-            panic!("expected data type to be Data::Type");
+            _ => {
+                panic!("expected data type to be Data::Type");
+            }
         }
     }
-    data_type
+    data_types
 }
 
 fn create_lexer(code: String) -> Lexer {
@@ -1051,7 +1247,14 @@ fn create_lexer(code: String) -> Lexer {
         end: false,
         letters: "abcdefghijklmnopqrstuvwxyz_".to_string(),
         digits: "0123456789".to_string(),
-        keywords: vec!["declare".to_string(), "as".to_string(), "set".to_string(), "to".to_string(), "while".to_string(), "return".to_string()],
+        keywords: vec![
+            "declare".to_string(),
+            "as".to_string(),
+            "set".to_string(),
+            "to".to_string(),
+            "while".to_string(),
+            "return".to_string(),
+        ],
     }
 }
 
