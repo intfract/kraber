@@ -808,96 +808,30 @@ struct Interpreter {
 
 impl Interpreter {
     fn init_memory(&mut self) {
-        self.memory.insert(
-            "eq".to_string(),
-            Variable {
-                value: Data::KraberFunction { body: eq },
-                data_type: new_node_vec(Data::Type {
-                    name: "kraberfunction".to_string(),
-                }),
-            },
-        );
-        self.memory.insert(
-            "lt".to_string(),
-            Variable {
-                value: Data::KraberFunction { body: lt },
-                data_type: new_node_vec(Data::Type {
-                    name: "kraberfunction".to_string(),
-                }),
-            },
-        );
-        self.memory.insert(
-            "nand".to_string(),
-            Variable {
-                value: Data::KraberFunction { body: nand },
-                data_type: new_node_vec(Data::Type {
-                    name: "kraberfunction".to_string(),
-                }),
-            },
-        );
-        self.memory.insert(
-            "add".to_string(),
-            Variable {
-                value: Data::KraberFunction { body: add },
-                data_type: new_node_vec(Data::Type {
-                    name: "kraberfunction".to_string(),
-                }),
-            },
-        );
-        self.memory.insert(
-            "multiply".to_string(),
-            Variable {
-                value: Data::KraberFunction { body: multiply },
-                data_type: new_node_vec(Data::Type {
-                    name: "kraberfunction".to_string(),
-                }),
-            },
-        );
-        self.memory.insert(
-            "raise".to_string(),
-            Variable {
-                value: Data::KraberFunction { body: raise },
-                data_type: new_node_vec(Data::Type {
-                    name: "kraberfunction".to_string(),
-                }),
-            },
-        );
-        self.memory.insert(
-            "floor".to_string(),
-            Variable {
-                value: Data::KraberFunction { body: floor },
-                data_type: new_node_vec(Data::Type {
-                    name: "kraberfunction".to_string(),
-                }),
-            },
-        );
-        self.memory.insert(
-            "join".to_string(),
-            Variable {
-                value: Data::KraberFunction { body: join },
-                data_type: new_node_vec(Data::Type {
-                    name: "kraberfunction".to_string(),
-                }),
-            },
-        );
-        self.memory.insert(
-            "push".to_string(),
-            Variable {
-                value: Data::KraberFunction { body: push },
-                data_type: new_node_vec(Data::Type {
-                    name: "kraberfunction".to_string(),
-                }),
-            },
-        );
-        self.memory.insert(
-            "pop".to_string(),
-            Variable {
-                value: Data::KraberFunction { body: pop },
-                data_type: new_node_vec(Data::Type {
-                    name: "kraberfunction".to_string(),
-                }),
-            },
-        );
+        let lib: Vec<(&str, fn(&Vec<Data>) -> Data)> = [
+            ("eq", eq as fn(&Vec<Data>) -> Data),
+            ("lt", lt),
+            ("nand", nand),
+            ("add", add),
+            ("multiply", multiply),
+            ("raise", multiply),
+            ("floor", floor),
+            ("join", join),
+            ("push", push),
+            ("pop", pop),
+        ]
+        .to_vec();
+        for tuple in lib {
+            self.memory.insert(
+                tuple.0.to_string(),
+                Variable {
+                    value: Data::KraberFunction { body: tuple.1 },
+                    data_type: new_node_vec(Data::Type {
+                        name: "kraberfunction".to_string(),
+                    }),
+                },
+            );
+        }
     }
 
     fn eval_expression(&mut self, expression: Node) -> Data {
