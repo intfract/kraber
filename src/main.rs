@@ -62,6 +62,7 @@ enum Data {
     },
     List {
         value: Vec<Data>,
+        sub_type: Vec<Node>,
     },
 }
 
@@ -197,14 +198,17 @@ fn join(args: &Vec<Data>) -> Data {
 }
 
 fn has_type(nodes: &Vec<Node>, type_node: Node) -> bool {
+    dbg!(&nodes);
+    dbg!(&type_node);
     for node in nodes {
         if type_node.data == node.data {
             if node.nodes.len() > 0 {
                 if type_node.nodes.len() != 1 || type_node.nodes.len() > node.nodes.len() {
                     return false;
                 }
-                return has_type(&node.nodes, type_node.nodes[0].clone())
+                return has_type(&node.nodes, type_node.nodes[0].clone());
             }
+            return true;
         }
     }
     false
@@ -212,14 +216,38 @@ fn has_type(nodes: &Vec<Node>, type_node: Node) -> bool {
 
 fn push(args: &Vec<Data>) -> Data {
     match &args[0] {
-        Data::List { value } => {
+        Data::List { value, sub_type } => {
             let mut x = value.clone();
-            // TODO: make a recursive function for parsing recursive types
-            /* if !has_type(data_types, &args[1]) {
-                panic!("expected one of types {:#?} but got {:#?}", &data_types, &args[1]);
-            } */
+            dbg!(&args);
+            let n = match &args[1] {
+                Data::List { value, sub_type } => Node {
+                    id: 0,
+                    data: Data::Type {
+                        name: stringify_enum(&args[1]),
+                    },
+                    nodes: sub_type.to_vec(),
+                },
+                Data::Type { name } => Node {
+                    id: 0,
+                    data: args[1].clone(),
+                    nodes: [].to_vec(),
+                },
+                _ => Node {
+                    id: 0,
+                    data: Data::Type {
+                        name: stringify_enum(&args[1]),
+                    },
+                    nodes: [].to_vec(),
+                },
+            };
+            if !has_type(sub_type, n) {
+                panic!("mismatched element types");
+            }
             x.push(args[1].clone());
-            Data::List { value: x }
+            Data::List {
+                value: x,
+                sub_type: sub_type.to_vec(),
+            }
         }
         _ => {
             panic!("sus");
@@ -229,10 +257,13 @@ fn push(args: &Vec<Data>) -> Data {
 
 fn pop(args: &Vec<Data>) -> Data {
     match &args[0] {
-        Data::List { value } => {
+        Data::List { value, sub_type } => {
             let mut x = value.clone();
             x.pop();
-            Data::List { value: x }
+            Data::List {
+                value: x,
+                sub_type: sub_type.to_vec(),
+            }
         }
         _ => {
             panic!("sus");
@@ -761,13 +792,12 @@ impl Parser {
 }
 
 fn new_node_vec(data: Data) -> Vec<Node> {
-    [
-        Node {
-            id: 0,
-            data,
-            nodes: [].to_vec(),
-        }
-    ].to_vec()
+    [Node {
+        id: 0,
+        data,
+        nodes: [].to_vec(),
+    }]
+    .to_vec()
 }
 
 struct Interpreter {
@@ -782,110 +812,90 @@ impl Interpreter {
             "eq".to_string(),
             Variable {
                 value: Data::KraberFunction { body: eq },
-                data_type: new_node_vec(
-                    Data::Type {
-                        name: "kraberfunction".to_string(),
-                    }
-                ),
+                data_type: new_node_vec(Data::Type {
+                    name: "kraberfunction".to_string(),
+                }),
             },
         );
         self.memory.insert(
             "lt".to_string(),
             Variable {
                 value: Data::KraberFunction { body: lt },
-                data_type: new_node_vec(
-                    Data::Type {
-                        name: "kraberfunction".to_string(),
-                    }
-                ),
+                data_type: new_node_vec(Data::Type {
+                    name: "kraberfunction".to_string(),
+                }),
             },
         );
         self.memory.insert(
             "nand".to_string(),
             Variable {
                 value: Data::KraberFunction { body: nand },
-                data_type: new_node_vec(
-                    Data::Type {
-                        name: "kraberfunction".to_string(),
-                    }
-                ),
+                data_type: new_node_vec(Data::Type {
+                    name: "kraberfunction".to_string(),
+                }),
             },
         );
         self.memory.insert(
             "add".to_string(),
             Variable {
                 value: Data::KraberFunction { body: add },
-                data_type: new_node_vec(
-                    Data::Type {
-                        name: "kraberfunction".to_string(),
-                    }
-                ),
+                data_type: new_node_vec(Data::Type {
+                    name: "kraberfunction".to_string(),
+                }),
             },
         );
         self.memory.insert(
             "multiply".to_string(),
             Variable {
                 value: Data::KraberFunction { body: multiply },
-                data_type: new_node_vec(
-                    Data::Type {
-                        name: "kraberfunction".to_string(),
-                    }
-                ),
+                data_type: new_node_vec(Data::Type {
+                    name: "kraberfunction".to_string(),
+                }),
             },
         );
         self.memory.insert(
             "raise".to_string(),
             Variable {
                 value: Data::KraberFunction { body: raise },
-                data_type: new_node_vec(
-                    Data::Type {
-                        name: "kraberfunction".to_string(),
-                    }
-                ),
+                data_type: new_node_vec(Data::Type {
+                    name: "kraberfunction".to_string(),
+                }),
             },
         );
         self.memory.insert(
             "floor".to_string(),
             Variable {
                 value: Data::KraberFunction { body: floor },
-                data_type: new_node_vec(
-                    Data::Type {
-                        name: "kraberfunction".to_string(),
-                    }
-                ),
+                data_type: new_node_vec(Data::Type {
+                    name: "kraberfunction".to_string(),
+                }),
             },
         );
         self.memory.insert(
             "join".to_string(),
             Variable {
                 value: Data::KraberFunction { body: join },
-                data_type: new_node_vec(
-                    Data::Type {
-                        name: "kraberfunction".to_string(),
-                    }
-                ),
+                data_type: new_node_vec(Data::Type {
+                    name: "kraberfunction".to_string(),
+                }),
             },
         );
         self.memory.insert(
             "push".to_string(),
             Variable {
                 value: Data::KraberFunction { body: push },
-                data_type: new_node_vec(
-                    Data::Type {
-                        name: "kraberfunction".to_string(),
-                    }
-                ),
+                data_type: new_node_vec(Data::Type {
+                    name: "kraberfunction".to_string(),
+                }),
             },
         );
         self.memory.insert(
             "pop".to_string(),
             Variable {
                 value: Data::KraberFunction { body: pop },
-                data_type: new_node_vec(
-                    Data::Type {
-                        name: "kraberfunction".to_string(),
-                    }
-                ),
+                data_type: new_node_vec(Data::Type {
+                    name: "kraberfunction".to_string(),
+                }),
             },
         );
     }
@@ -1065,13 +1075,15 @@ impl Interpreter {
                     match &node.nodes[0].data {
                         Data::Identifier { name } => {
                             let data_type = node.nodes[1..].to_vec();
-                            println!("{:#?}", data_type);
                             self.memory.insert(
                                 name.clone(),
                                 Variable {
                                     value: match &data_type[0].data {
                                         Data::Type { name } => match name.as_str() {
-                                            "list" => Data::List { value: [].to_vec() },
+                                            "list" => Data::List {
+                                                value: [].to_vec(),
+                                                sub_type: data_type[0].nodes.clone(),
+                                            }, // TODO: fix `sub_type`
                                             _ => Data::Null,
                                         },
                                         _ => {
@@ -1213,19 +1225,18 @@ fn cast(expression_value: &mut Data, variable: Variable) -> Vec<Node> {
                         }
                     }
                 } else if name == "list" {
-                    match &variable.value {
-                        Data::List { value: _ } => match expression_value {
-                            Data::List { value } => {
-                                *expression_value = Data::List {
-                                    value: value.to_vec(),
-                                };
+                    match expression_value {
+                        Data::List { value, sub_type } => {
+                            if !has_type(&data_types[0].nodes, sub_type[0].clone()) {
+                                panic!("oh shit");
                             }
-                            _ => {
-                                panic!("could not cast {type_name:#?} to {name:#?}");
-                            }
-                        },
+                            *expression_value = Data::List {
+                                value: value.to_vec(),
+                                sub_type: sub_type.to_vec(),
+                            };
+                        }
                         _ => {
-                            panic!("expected Data::List");
+                            panic!("could not cast {type_name:#?} to {name:#?}");
                         }
                     }
                 } // else do not mutate `expression_value`
