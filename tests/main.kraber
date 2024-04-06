@@ -1,2 +1,4 @@
-declare items as list[integer]
-set items to push(items 0.0)
+declare x as list[integer]
+set x to push(x +0)
+declare items as list[list[integer]]
+set items to push(items x)
